@@ -267,27 +267,33 @@ const handleRegister = async () => {
               <Text style={styles.linkText}>{isLogin ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}</Text>
             </TouchableOpacity>
 
-            {/* --- CABINA DI COMANDO CONTATTI (FOOTER) --- */}
-            <View style={styles.companyInfo}>
+{/* --- CABINA DI COMANDO CONTATTI + FIRMA (FOOTER NUOVO) --- */}
+            <View style={styles.footerContainer}>
               
-              <View style={{flexDirection: 'row', gap: 20, marginTop: 15, marginBottom: 5}}>
-                  
-                  {/* 1. SITO WEB (Cyan) */}
+              {/* 1. RIGA DELLE ICONE (Spostate in alto) */}
+              <View style={styles.socialRow}>
+                  {/* SITO WEB (Cyan) */}
                   <TouchableOpacity onPress={handleOpenWebsite} style={styles.contactBtn}>
                       <Feather name="globe" size={20} color="#22d3ee" />
                   </TouchableOpacity>
 
-                  {/* 2. EMAIL (Grigio) */}
+                  {/* EMAIL (Grigio) */}
                   <TouchableOpacity onPress={handleEmailSupport} style={styles.contactBtn}>
                       <Feather name="mail" size={20} color="#cbd5e1" />
                   </TouchableOpacity>
                   
-                  {/* 3. WHATSAPP (Verde) */}
+                  {/* WHATSAPP (Verde) */}
                   <TouchableOpacity onPress={handleWhatsAppSupport} style={styles.contactBtn}>
                       <Feather name="message-circle" size={20} color="#22c55e" />
                   </TouchableOpacity>
-
               </View>
+
+              {/* 2. LA TUA FIRMA (Il Tocco di Classe) */}
+              <Text style={styles.creditText}>
+                  Designed & Engineered by{'\n'}
+                  <Text style={styles.creditName}>GUGLIELMI MASSIMO</Text>
+              </Text>
+
             </View>
           </View>
         </ScrollView>
@@ -466,5 +472,31 @@ const styles = StyleSheet.create({
       borderRadius: 50,
       borderWidth: 1,
       borderColor: '#334155'
+  },
+  // --- NUOVI STILI PER LA FIRMA ---
+  footerContainer: {
+    marginTop: 40,
+    alignItems: 'center',
+    paddingBottom: 30,
+    width: '100%',
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginBottom: 20, // Questo è lo spazio tra le icone e la tua firma
+  },
+  creditText: {
+    color: '#6e6e73', // Grigio "Apple" elegante
+    fontSize: 10,
+    textTransform: 'uppercase', // Tutto maiuscolo
+    letterSpacing: 1.5, // Lettere spaziate
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  creditName: {
+    color: '#FFFFFF', // Il tuo nome in bianco brillante
+    fontWeight: '900', // Molto grassetto
+    fontSize: 11,
   },
 });
