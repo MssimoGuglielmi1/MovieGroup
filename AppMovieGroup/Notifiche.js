@@ -1,5 +1,5 @@
 // Notifiche.js
-// Il Postino ufficiale di Movie Group 📬
+// Il Postino ufficiale di Movie Group 📬 (Versione Web Potenziata)
 
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
@@ -17,7 +17,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// 2. FUNZIONE PER INVIARE NOTIFICHE (Il cuore del sistema)
+// 2. FUNZIONE PER INVIARE NOTIFICHE
 export async function sendPushNotification(expoPushToken, title, body, data = {}) {
   if (!expoPushToken) {
       console.log("Tentativo invio notifica fallito: Nessun token fornito.");
@@ -48,10 +48,11 @@ export async function sendPushNotification(expoPushToken, title, body, data = {}
   }
 }
 
-// 3. FUNZIONE PER REGISTRARE IL DISPOSITIVO (Chiede il permesso e prende il Token)
+// 3. FUNZIONE PER REGISTRARE IL DISPOSITIVO (ORA ANCHE WEB!)
 export async function registerForPushNotificationsAsync(userUid) {
   let token;
 
+  // Configurazione Canale Android (obbligatorio per Android)
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -61,7 +62,10 @@ export async function registerForPushNotificationsAsync(userUid) {
     });
   }
 
-  if (Device.isDevice) {
+  // Controllo se è un dispositivo fisico (o browser web)
+  if (Device.isDevice || Platform.OS === 'web') {
+    
+    // A. Chiediamo il permesso
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     
@@ -71,14 +75,20 @@ export async function registerForPushNotificationsAsync(userUid) {
     }
     
     if (finalStatus !== 'granted') {
-      console.log('Permesso notifiche mancante!');
+      console.log('Permesso notifiche mancante! L\'utente ha detto NO.');
       return null;
     }
 
-    // Otteniamo il token
+    // B. Otteniamo il token (QUI C'È LA MODIFICA PER IL WEB!)
     try {
         const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+        
+        // ATTENZIONE: Incolla qui sotto la chiave presa da Firebase!
+        token = (await Notifications.getExpoPushTokenAsync({ 
+            projectId,
+            vapidKey: 'BBpoRY7OZ2Hp4THgYaVg-KIvf4g7yDsrJSopbRPwcw9245mENTCVJfheBvDbEAhd7zLrLyb2GoFEJFefeCL9mBg' 
+        })).data;
+        
         console.log("Token ottenuto:", token);
 
         // Se abbiamo l'ID utente, salviamo subito il token nel DB
@@ -93,7 +103,7 @@ export async function registerForPushNotificationsAsync(userUid) {
         console.log("Errore recupero token:", e);
     }
   } else {
-    console.log('Le notifiche push non funzionano sul simulatore fisico PC.');
+    console.log('Le notifiche push non funzionano su emulatori PC vecchi.');
   }
 
   return token;
