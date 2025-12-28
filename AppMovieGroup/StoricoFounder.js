@@ -1,9 +1,9 @@
 //StoricoFounder.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db } from './firebaseConfig';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { calculateFiscalData } from './CalcolatriceFiscale'; // <--- IMPORT NUOVO
 
 const Colors = {
@@ -48,12 +48,59 @@ export default function StoricoFounder({ navigation }) {
         return () => unsubscribe();
     }, []);
 
+// --- FUNZIONE CANCELLAZIONE INTELLIGENTE (Web + Mobile) ---
+    const handleDeleteShift = (shiftId) => {
+        
+        // SE SIAMO SUL WEB (PC/Chrome/Safari) 💻
+        if (Platform.OS === 'web') {
+            // Usiamo il comando nativo dei browser
+            if (window.confirm("⚠️ ELIMINARE TURNO?\n\nVuoi cancellare questo turno PER SEMPRE? Sparirà anche dal PDF.")) {
+                deleteDoc(doc(db, "shifts", shiftId))
+                    .then(() => {
+                        // Opzionale: un piccolo alert di conferma o nulla
+                        // alert("Eliminato!"); 
+                    })
+                    .catch((error) => {
+                        console.log("Errore:", error);
+                        alert("Errore durante l'eliminazione.");
+                    });
+            }
+        } 
+        
+        // SE SIAMO SU APP (Android/iOS) 📱
+        else {
+            Alert.alert(
+            "ELIMINARE TURNO? ⚠️",
+            "Vuoi cancellare questo turno dallo storico? Attenzione: il turno verrà rimosso PER SEMPRE anche dal PDF e dai conteggi.",
+                [
+                    { text: "Annulla", style: "cancel" },
+                    {
+                        text: "ELIMINA PER SEMPRE",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                await deleteDoc(doc(db, "shifts", shiftId));
+                            } catch (error) {
+                                Alert.alert("Errore", "Impossibile eliminare il turno.");
+                            }
+                        }
+                    }
+                ]
+            );
+        }
+    };
+
     const renderItem = ({ item }) => {
         const isMinute = item.rateType === 'minute';
         const isLateStart = item.realStartTime && new Date(item.realStartTime) > new Date(item.date + 'T' + item.startTime);
 
         return (
-            <View style={styles.card}>
+<TouchableOpacity 
+                style={styles.card} 
+                activeOpacity={0.7} // <--- Aggiungi questo per l'effetto visivo
+                onLongPress={() => handleDeleteShift(item.id)} // <--- IL GRILLETTO
+                delayLongPress={2000} // <--- LA SICURA (2 Secondi)
+            >
                 <View style={styles.cardHeader}>
                     <View style={{flex: 1}}>
                         <Text style={styles.collabName}>{item.collaboratorName}</Text>
@@ -83,7 +130,7 @@ export default function StoricoFounder({ navigation }) {
                         </View>
                     )}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -97,11 +144,11 @@ export default function StoricoFounder({ navigation }) {
                 <Text style={styles.title}>ARCHIVIO GENERALE</Text>
             </View>
             <View style={styles.summaryBox}>
-                <Text style={styles.summaryLabel}>TOTALE EROGATO (REALE - 30 GG)</Text>
+                <Text style={styles.summaryLabel}>TOTALE EROGATO (REALE - 60 GG)</Text>
                 <Text style={styles.summaryValue}>€ {totalSpent.toFixed(2)}</Text>
             </View>
             {loading ? <ActivityIndicator size="large" color={Colors.purple} style={{marginTop: 50}} /> : (
-                <FlatList data={history} keyExtractor={item => item.id} renderItem={renderItem} contentContainerStyle={{ padding: 20, paddingBottom: 50 }} ListEmptyComponent={<Text style={styles.empty}>Nessun turno completato negli ultimi 30 giorni.</Text>} />
+                <FlatList data={history} keyExtractor={item => item.id} renderItem={renderItem} contentContainerStyle={{ padding: 20, paddingBottom: 50 }} ListEmptyComponent={<Text style={styles.empty}>Nessun turno completato negli ultimi 60 giorni.</Text>} />
             )}
         </SafeAreaView>
     );
