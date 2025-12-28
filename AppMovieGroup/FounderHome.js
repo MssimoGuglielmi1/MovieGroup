@@ -45,7 +45,7 @@ const Header = ({ workingCount, adminCount, collabCount, theme, toggleTheme, onL
             </Text>
             <Text style={{color: Colors.divider, fontSize: 11, marginHorizontal: 6}}>|</Text>
             <Text style={{color: '#38BDF8', fontSize: 11, fontWeight: 'bold'}}> {/* Celeste Collab */}
-                🔵 {collabCount} COLLAB
+                🔵 {collabCount} DIPENDENTI
             </Text>
         </View>
     </View>
@@ -332,7 +332,7 @@ return (
                 onPress={() => navigation.navigate('ShiftManagementScreen', { shiftsPending, shiftsActive, shiftsCompleted })} 
             />
             <GridTile 
-                label="Crearea, assegna e Salva un turno" 
+                label="Crea, assegna e Salva un turno" 
                 value="Turno Dimenticato"
                 color={Colors.accentGreen} 
                 Colors={Colors} 
@@ -427,8 +427,8 @@ return (
         <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
             <View style={styles(Colors).modalOverlay}>
                 <View style={styles(Colors).modalContent}>
-                    <Text style={styles(Colors).modalTitle}>BANCA CENTRALE 🏦</Text>
-                    <Text style={styles(Colors).modalSub}>Configura la valuta di default.</Text>
+                    <Text style={styles(Colors).modalTitle}>BANCA CENTRALE</Text>
+                    <Text style={styles(Colors).modalSub}>Configurazione dei pagamenti.</Text>
 
                     <Text style={{color: Colors.textFaded, marginTop:20, fontSize:12, fontWeight:'bold'}}>IMPORTO AL MINUTO (€)</Text>
                     <TextInput 
@@ -455,7 +455,7 @@ return (
                         borderColor: Colors.accentPurple
                     }}>
                         <Text style={{color: Colors.accentPurple, fontWeight: 'bold', fontSize: 16}}>AL MINUTO ⏱️</Text>
-                        <Text style={{color: Colors.textFaded, fontSize: 10, marginTop: 4}}>Configurazione bloccata come richiesto.</Text>
+                        <Text style={{color: Colors.textFaded, fontSize: 10, marginTop: 4}}>Configurazione bloccata.</Text>
                     </View>
 
                     <TouchableOpacity style={styles(Colors).saveBtn} onPress={saveGlobalSettings} disabled={savingSettings}>

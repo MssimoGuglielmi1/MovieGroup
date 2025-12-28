@@ -141,7 +141,7 @@ export default function StoricoFounder({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.leftButton}>
                     <Feather name="arrow-left" size={24} color={Colors.textMain} />
                 </TouchableOpacity>
-                <Text style={styles.title}>ARCHIVIO GENERALE</Text>
+                <Text style={styles.title}>COSTI AZIENDALI</Text>
             </View>
             <View style={styles.summaryBox}>
                 <Text style={styles.summaryLabel}>TOTALE EROGATO (REALE - 60 GG)</Text>
