@@ -1,6 +1,6 @@
 //ShiftManagementScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where } from 'firebase/firestore'; 
@@ -17,7 +17,8 @@ export default function ShiftManagementScreen({ navigation }) {
     const [allShifts, setAllShifts] = useState([]);
     const [currentTab, setCurrentTab] = useState('PENDING'); 
     const [loadingAction, setLoadingAction] = useState(false);
-    const [currentUserRole, setCurrentUserRole] = useState(null); 
+    const [currentUserRole, setCurrentUserRole] = useState(null);
+    const [searchText, setSearchText] = useState(''); // <--- STATO PER LA RICERCA
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
 
     // Recupera il ruolo dell'utente corrente
@@ -264,52 +265,52 @@ const isHistoryStatus = (s) => ['completato', 'rifiutato', 'rejected', 'scaduto'
 // --- ORDINAMENTO INTELLIGENTE ---
     // Funzione per ordinare dal più VICINO al più LONTANO (Urgenti in alto)
     const sortAscending = (a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime);
-    
     // Funzione per ordinare dal più RECENTE al più VECCHIO (Ultimi chiusi in alto)
     const sortDescending = (a, b) => new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime);
-
-    // 1. DA CONFERMARE: Ordine Crescente (Prima quelli che scadono a breve)
-    const shiftsPending = allShifts
-        .filter(s => isPendingStatus(s.status) && s.collaboratorId !== currentUserId)
-        .sort(sortAscending);
-
-    // 2. OPERATIVI: Ordine Crescente (Prima quelli di oggi/domani)
-    const shiftsActive = allShifts
-        .filter(s => isActiveStatus(s.status) && s.collaboratorId !== currentUserId)
-        .sort(sortAscending);
-    
-    // 3. STORICO: Ordine Decrescente (Prima l'ultimo completato)
-    const shiftsHistory = allShifts
-        .filter(s => isHistoryStatus(s.status))
-        .sort(sortDescending);
-
+    // --- FUNZIONE DI RICERCA ---
+    const filterBySearch = (list) => {
+        if (!searchText) return list; // Se non scrivi nulla, mostra tutto
+        const lowerText = searchText.toLowerCase();
+        return list.filter(item => 
+            (item.collaboratorName || '').toLowerCase().includes(lowerText) ||
+            (item.location || '').toLowerCase().includes(lowerText) ||
+            (item.date || '').includes(lowerText)
+        );
+    };
+// 1. DA CONFERMARE
+    const shiftsPending = filterBySearch(
+        allShifts.filter(s => isPendingStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAscending)
+    );
+    // 2. OPERATIVI
+    const shiftsActive = filterBySearch(
+        allShifts.filter(s => isActiveStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAscending)
+    );
+    // 3. STORICO
+    const shiftsHistory = filterBySearch(
+        allShifts.filter(s => isHistoryStatus(s.status)).sort(sortDescending)
+    );
 const renderShiftItem = ({ item }) => {
         const isMyShift = item.collaboratorId === currentUserId; 
         const statusLower = (item.status || '').toLowerCase();
         const isFounder = currentUserRole === 'FOUNDER';
-
         // --- CALCOLO COLORI E TESTI ---
         let badgeColor = Colors.accent; // Default Blu (Accettato)
         let badgeText = (item.status || '').toUpperCase();
         let isLateStart = false; // Nuova variabile per tracciare il ritardo
-
         // 1. Logica Standard
         if (statusLower === 'completato') { badgeColor = Colors.success; badgeText = "SALVATO"; }
         else if (statusLower === 'rifiutato') { badgeColor = Colors.error; badgeText = "RIFIUTATO"; }
-        else if (statusLower === 'scaduto') { badgeColor = '#64748b'; badgeText = "NON CONFERMATO"; }
-        
+        else if (statusLower === 'scaduto') { badgeColor = '#64748b'; badgeText = "NON CONFERMATO"; } 
         // 2. Logica Speciale: ACCETTATO ma NON PARTITO (Il tuo "Grigio Attenzione")
         else if (statusLower === 'accettato') {
             // Calcoliamo l'ora di inizio prevista
-            const startDate = getShiftDateTime(item.date, item.startTime);
-            
+            const startDate = getShiftDateTime(item.date, item.startTime);   
             // Se l'ora attuale ha superato l'inizio (e non è ancora in-corso)
             // Aggiungiamo 5 minuti di tolleranza prima di farlo diventare grigio
             const warningThreshold = new Date(startDate.getTime() + 5 * 60000);
-
             if (currentTime > warningThreshold) {
-                badgeColor = '#6b7280'; // Grigio scuro
-                badgeText = "NON AVVIATO ⚠️"; // Testo con icona attenzione
+                badgeColor = '#6b7280';
+                badgeText = "NON AVVIATO ⚠️";
                 isLateStart = true;
             } else {
                 // Se è in orario
@@ -318,7 +319,6 @@ const renderShiftItem = ({ item }) => {
             }
         }
         else if (statusLower === 'in-corso') { badgeColor = Colors.success; }
-
         // --- 1. VERSIONE STORICO (Opaca) ---
         if (currentTab === 'HISTORY') {
             return (
@@ -415,6 +415,22 @@ const renderShiftItem = ({ item }) => {
                 <Text style={styles.screenTitle}>GESTIONE TURNI</Text>
                 {loadingAction && <ActivityIndicator size="small" color={Colors.accent} style={{marginLeft:10}}/>}
             </View>
+            {/* --- BARRA DI RICERCA NUOVA --- */}
+            <View style={styles.searchContainer}>
+                <Feather name="search" size={20} color={Colors.textSecondary} style={{marginRight: 10}} />
+                <TextInput 
+                    style={styles.searchInput}
+                    placeholder="Cerca nome, data (es. 20/12) o luogo..."
+                    placeholderTextColor={Colors.textSecondary}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                />
+                {searchText.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchText('')}>
+                        <Feather name="x" size={20} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                )}
+            </View>
             <View style={styles.tabContainer}>
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'PENDING' && styles.tabActive]} onPress={() => setCurrentTab('PENDING')}><Text style={[styles.tabText, currentTab === 'PENDING' && styles.tabTextActive]}>DA CONFERMARE</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'PROGRAM' && styles.tabActive]} onPress={() => setCurrentTab('PROGRAM')}><Text style={[styles.tabText, currentTab === 'PROGRAM' && styles.tabTextActive]}>OPERATIVI</Text></TouchableOpacity>
@@ -451,5 +467,7 @@ const styles = StyleSheet.create({
     emptyText: { color: Colors.textSecondary, textAlign: 'center', marginTop: 10 },
     actionContainer: { marginTop: 15, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
     actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, flex: 1 },
-    actionBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 12 }
+    actionBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 12 },
+    searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',margin: 15,marginBottom: 5, paddingHorizontal: 15,borderRadius: 10,height: 45,},
+    searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
 });
