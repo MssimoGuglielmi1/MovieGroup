@@ -10,7 +10,12 @@ const Colors = {
     text: '#FFFFFF',
     subText: '#A1A1AA',
     purple: '#A371F7',
-    gold: '#EAB308'
+    gold: '#EAB308',
+    purple: '#A371F7',
+    gold: '#EAB308',
+    orange: '#FF9500', 
+    error: '#FF453A',
+    info: '#64748B',
 };
 
 // --- CONTENUTI DIVERSI PER RUOLO --- 'map-pin'
@@ -123,17 +128,35 @@ const STEPS_ADMIN = [
     }
 ];
 
+// --- 3. CONTENUTI LEGENDA STAFF (NUOVO!) ---
+const STEPS_LEGEND = [
+    { icon: 'file-text', color: Colors.accent, title: 'INFO', desc: 'Da qui attualmente hai a portata di mano e click: CF & IBAN (Se compilati).                                            P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
+    { icon: 'refresh-cw', color: Colors.purple, title: 'IL CAMBIO RUOLO', desc: 'Premendo sul tasto "CAMBIO RUOLO", permetterai ad un COLLABORATORE di diventare AMMINISTRATORE e viceversa.' },
+    { icon: 'lock', color: Colors.orange, title: 'BLOCCO TEMPORANEO', desc: 'Selezionando il pulsante "LUCCHETTO", impedirai al profilo di accedere in app, senza cancellare il suo store dal database di firestore.' },
+    { icon: 'phone', color: Colors.primary, title: 'CHIAMATA AGILE', desc: 'Avvia una chiamata diretta al numero registrato (Se registrato).                  P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
+    { icon: 'trash-2', color: Colors.error, title: 'LICENZIA', desc: 'Dal tasto a forma di cestino, fai: SPARIRE DEFINITIVAMENTE PER SEMPRE SENZA POSSIBILITà DI RECUPERO INFO, LUTENTE (CONSIGLIO VIVAMENTE DI LICENZIARE SOLO DOPO AVER FATTO LA BUSTA PAGA, NEL MENTRE PREMI IL LUCCHETTO COSI GLI IMPEDISCI LACCESSO IN APP, PER QUALSIASI DOMANDA CHIAMAMI BY MASSIMO).' }
+];
+
 export default function WelcomeModal({ visible, onClose, userRole }) {
     
-    // DECIDIAMO QUALI DATI MOSTRARE
+// DECIDIAMO QUALI DATI MOSTRARE
     let dataToShow = STEPS_COLLABORATOR; // Default
     let titleText = "BENVENUTO NEL TEAM 👋";
+    let subTitleText = "Guida rapida alle tue funzioni"; // Testo di default
 
     if (userRole === 'AMMINISTRATORE' || userRole === 'ADMIN') {
         dataToShow = STEPS_ADMIN;
         titleText = "PANNELLO DI CONTROLLO 🛠️";
-    } else if (userRole === 'FOUNDER') {
-        dataToShow = STEPS_FOUNDER;
+    } 
+    // 🔥 CASO LEGENDA (Quello che ci serve ora) 🔥
+    else if (userRole === 'LEGEND') {
+        dataToShow = STEPS_LEGEND;
+        titleText = "LEGENDA COMANDI ℹ️";
+        subTitleText = "Significato delle icone gestionali";
+    }
+    // Caso Founder (Usa gli step Admin ma con titolo da Re)
+    else if (userRole === 'FOUNDER') {
+        dataToShow = STEPS_ADMIN; 
         titleText = "AMMINISTRAZIONE SUPREMA 👑";
     }
 

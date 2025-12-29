@@ -5,6 +5,9 @@ import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
 
+//Collegamenti
+import WelcomeModal from './WelcomeModal';
+
 const Colors = {
     background: '#000000', surface: '#1C1C1E', textMain: '#FFFFFF', textSub: '#8E8E93',
     primary: '#4CAF50', accent: '#0A84FF', border: '#2C2C2E', error: '#FF453A',
@@ -22,6 +25,7 @@ export default function AdminStaffScreen({ navigation, route }) {
     const [selectedUser, setSelectedUser] = useState(null); 
     const [modalVisible, setModalVisible] = useState(false);
     const [searchText, setSearchText] = useState('');
+    const [showLegend, setShowLegend] = useState(false);
 
     useEffect(() => {
         const init = async () => {
@@ -233,7 +237,7 @@ export default function AdminStaffScreen({ navigation, route }) {
         if (!phoneNumber) return Alert.alert("No Numero", "L'utente non ha inserito il cellulare.");
         Linking.openURL(`tel:${phoneNumber.replace(/\s/g, '')}`);
     };
-        const handleInfoAction = () => { Alert.alert("Info Staff", "Qui si aprirà la Welcome Modal."); };
+        const handleInfoAction = () => { setShowLegend(true); };
 
         const renderItem = ({ item }) => {
         const isUserAdmin = item.role === 'AMMINISTRATORE';
@@ -497,6 +501,11 @@ return (
                     </View>
                 </View>
             </Modal>
+            <WelcomeModal 
+                visible={showLegend} 
+                onClose={() => setShowLegend(false)} 
+                userRole="LEGEND" 
+            />
         </SafeAreaView>
     );
 }
@@ -529,6 +538,6 @@ const styles = StyleSheet.create({
     boxLabel: { color: Colors.textSub, fontSize: 10, marginBottom: 4 },
     boxValue: { color: Colors.textMain, fontSize: 16, fontWeight: 'bold' },
     searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',marginHorizontal: 20,marginBottom: 10,paddingHorizontal: 15,borderRadius: 10,
-    heiht: 45,},
+    height: 45,},
     searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
 });
