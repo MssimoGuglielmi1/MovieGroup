@@ -14,24 +14,42 @@ const Colors = {
 };
 
 // --- COMPONENTE SPOSTATO FUORI (COSI NON SI RICARICA OGNI VOLTA) ---
-const EditableField = ({ label, value, onChange, placeholder, isSecure = false, keyboard = 'default' }) => (
-    <View style={{ marginBottom: 15 }}>
-        <Text style={styles.label}>{label}</Text>
-        <View style={styles.inputWrapper}>
-            <TextInput
-                style={styles.inputWithIcon}
-                placeholder={placeholder}
-                placeholderTextColor={Colors.textSub}
-                value={value}
-                onChangeText={onChange}
-                secureTextEntry={isSecure}
-                keyboardType={keyboard}
-                autoCapitalize={label.includes("Email") || label.includes("Password") ? "none" : "sentences"}
-            />
-            <Feather name="edit-3" size={18} color={Colors.pencil} style={styles.pencilIcon} />
+const EditableField = ({ label, value, onChange, placeholder, isSecure = false, keyboard = 'default' }) => {
+    // 1. Definiamo cosa NON è obbligatorio
+    const isOptional = label.includes("Facoltativo");
+    const isPasswordField = label.includes("Password");
+
+    // 2. Il campo è "mancante" solo se: 
+    // NON è opzionale AND NON è una password AND è effettivamente vuoto
+    const isMissing = !isOptional && !isPasswordField && (!value || value.trim() === '');
+
+    return (
+        <View style={{ marginBottom: 15 }}>
+            <Text style={styles.label}>{label}</Text>
+            <View style={[
+                styles.inputWrapper, 
+                isMissing && { borderColor: Colors.error, borderWidth: 1.5 } // Rosso solo se mancano dati vitali
+            ]}>
+                <TextInput
+                    style={styles.inputWithIcon}
+                    placeholder={placeholder}
+                    placeholderTextColor={Colors.textSub}
+                    value={value}
+                    onChangeText={onChange}
+                    secureTextEntry={isSecure}
+                    keyboardType={keyboard}
+                    autoCapitalize={label.includes("Email") || isPasswordField ? "none" : "sentences"}
+                />
+                <Feather 
+                    name={isMissing ? "alert-circle" : "edit-3"} 
+                    size={18} 
+                    color={isMissing ? Colors.error : Colors.pencil} 
+                    style={styles.pencilIcon} 
+                />
+            </View>
         </View>
-    </View>
-);
+    );
+};
 // ------------------------------------------------------------------
 
 export default function CamerinoStaff({ navigation }) {

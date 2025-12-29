@@ -1,6 +1,6 @@
 //CollaboratorHistory.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, StatusBar, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, StatusBar, Platform, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -13,6 +13,7 @@ const Colors = {
 export default function CollaboratorHistoryScreen({ onBack }) {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchText, setSearchText] = useState(''); // <--- Per la ricerca
 
     useEffect(() => {
         const user = auth.currentUser;
@@ -67,6 +68,12 @@ export default function CollaboratorHistoryScreen({ onBack }) {
         </View>
     );
 
+    // Filtriamo i turni in base alla ricerca (Data o Luogo)
+    const filteredHistory = history.filter(item => 
+        (item.location || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (item.date || '').includes(searchText)
+    );
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -80,12 +87,27 @@ export default function CollaboratorHistoryScreen({ onBack }) {
                 {/* Qui a destra non c'è più nulla */}
                 <View style={{width: 24}} /> 
             </View>
-
+{/* BARRA DI RICERCA */}
+            <View style={styles.searchContainer}>
+                <Feather name="search" size={18} color={Colors.textSub} style={{marginRight: 10}} />
+                <TextInput 
+                    style={styles.searchInput}
+                    placeholder="Cerca per data o luogo..."
+                    placeholderTextColor={Colors.textSub}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                />
+                {searchText.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchText('')}>
+                        <Feather name="x" size={18} color={Colors.textSub} />
+                    </TouchableOpacity>
+                )}
+            </View>
             {loading ? (
                 <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
             ) : (
                 <FlatList
-                    data={history}
+                    data={filteredHistory}
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     contentContainerStyle={{ padding: 20 }}
@@ -114,5 +136,10 @@ const styles = StyleSheet.create({
     detailBox: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, padding: 10, backgroundColor: '#000', borderRadius: 8 },
     detailLabel: { color: Colors.textSub, fontSize: 12, fontWeight: 'bold' },
     detailValue: { color: Colors.textMain, fontSize: 12, fontWeight: 'bold' },
-    emptyText: { color: Colors.textSub, marginTop: 10, fontStyle: 'italic' }
+    emptyText: { color: Colors.textSub, marginTop: 10, fontStyle: 'italic' },
+    // STILI PER LA RICERCA
+    searchContainer: {flexDirection: 'row',alignItems: 'center',
+    backgroundColor: Colors.surface,margin: 15,paddingHorizontal: 15,
+    borderRadius: 10,height: 45,borderWidth: 1,borderColor: Colors.border},
+    searchInput: {flex: 1,color: Colors.textMain,fontSize: 14,},
 });
