@@ -40,7 +40,8 @@ const ShiftCard = ({ item, userRole, currentUser, onDelete, onVote }) => {
                     {item.note ? <Text style={styles.noteText}>📝 {item.note}</Text> : null}
                 </View>
 
-                {userRole === 'FOUNDER' && (
+            {/* ORA ANCHE L'ADMIN PUÒ CANCELLARE */}
+                {(userRole === 'FOUNDER' || userRole === 'AMMINISTRATORE') && (
                     <TouchableOpacity onPress={() => onDelete(item.id)} style={{marginLeft:10}}>
                         <Feather name="trash-2" size={22} color="#ef4444" />
                     </TouchableOpacity>
@@ -219,7 +220,7 @@ export default function MostroRivoluzionario({ navigation }) {
             </View>
 
             {/* BOX CREAZIONE (Solo Founder) */}
-            {userRole === 'FOUNDER' && (
+            {(userRole === 'FOUNDER' || userRole === 'AMMINISTRATORE') && (
                 <View style={styles.createBox}>
                     <Text style={styles.createTitle}>Nuova Previsione</Text>
                     <TextInput style={[styles.input, {marginBottom:10}]} placeholder="Data (es. 15/08/2026)" placeholderTextColor="#94a3b8" value={newDate} onChangeText={setNewDate}/>

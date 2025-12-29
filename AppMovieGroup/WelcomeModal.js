@@ -129,7 +129,7 @@ const STEPS_ADMIN = [
 ];
 
 // --- 3. CONTENUTI LEGENDA STAFF (NUOVO!) ---
-const STEPS_LEGEND = [
+const STEPS_LEGEND_FOUNDER = [
     { icon: 'file-text', color: Colors.accent, title: 'INFO', desc: 'Da qui attualmente hai a portata di mano e click: CF & IBAN (Se compilati).                                            P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
     { icon: 'refresh-cw', color: Colors.purple, title: 'IL CAMBIO RUOLO', desc: 'Premendo sul tasto "CAMBIO RUOLO", permetterai ad un COLLABORATORE di diventare AMMINISTRATORE e viceversa.' },
     { icon: 'lock', color: Colors.orange, title: 'BLOCCO TEMPORANEO', desc: 'Selezionando il pulsante "LUCCHETTO", impedirai al profilo di accedere in app, senza cancellare il suo store dal database di firestore.' },
@@ -137,10 +137,9 @@ const STEPS_LEGEND = [
     { icon: 'trash-2', color: Colors.error, title: 'LICENZIA', desc: 'Dal tasto a forma di cestino, fai: SPARIRE DEFINITIVAMENTE PER SEMPRE SENZA POSSIBILITà DI RECUPERO INFO, LUTENTE (CONSIGLIO VIVAMENTE DI LICENZIARE SOLO DOPO AVER FATTO LA BUSTA PAGA, NEL MENTRE PREMI IL LUCCHETTO COSI GLI IMPEDISCI LACCESSO IN APP, PER QUALSIASI DOMANDA CHIAMAMI BY MASSIMO).' }
 ];
 const STEPS_LEGEND_ADMIN = [
-    { icon: 'lock', color: Colors.orange, title: 'CONGELA (Arancione)', desc: 'Blocca temporaneamente l\'accesso.' },
-    { icon: 'phone', color: Colors.primary, title: 'CHIAMA (Verde)', desc: 'Avvia una chiamata diretta.' },
-    { icon: 'info', color: Colors.info, title: 'LEGENDA (Grigio)', desc: 'Spiegazione icone.' },
-    { icon: 'trash-2', color: Colors.error, title: 'ELIMINA (Rosso)', desc: 'Rimuove il collaboratore.' }
+    { icon: 'lock', color: Colors.orange, title: 'BLOCCO TEMPORANEO', desc: 'Selezionando il pulsante "LUCCHETTO", impedirai al profilo di accedere in app, senza cancellare il suo store dal database di firestore.' },
+    { icon: 'phone', color: Colors.primary, title: 'CHIAMA AGILE', desc: 'Avvia una chiamata diretta al numero registrato (Se registrato).                  P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
+    { icon: 'trash-2', color: Colors.error, title: 'LICENZIA', desc: 'Dal tasto a forma di cestino, fai: SPARIRE DEFINITIVAMENTE PER SEMPRE SENZA POSSIBILITà DI RECUPERO INFO, LUTENTE (CONSIGLIO VIVAMENTE DI LICENZIARE SOLO DOPO AVER FATTO LA BUSTA PAGA, NEL MENTRE PREMI IL LUCCHETTO COSI GLI IMPEDISCI LACCESSO IN APP, PER QUALSIASI DOMANDA CHIAMAMI BY MASSIMO).' }
 ];
 
 export default function WelcomeModal({ visible, onClose, userRole }) {
@@ -154,11 +153,11 @@ export default function WelcomeModal({ visible, onClose, userRole }) {
         dataToShow = STEPS_ADMIN;
         titleText = "PANNELLO DI CONTROLLO 🛠️";
     } 
-    // 🔥 CASO LEGENDA (Quello che ci serve ora) 🔥
-    else if (userRole === 'LEGEND') {
-        dataToShow = STEPS_LEGEND;
-        titleText = "LEGENDA COMANDI ℹ️";
-        subTitleText = "Significato delle icone gestionali";
+// 🔥 CASO LEGENDA FOUNDER (Con il tuo testo sacro) 🔥
+    else if (userRole === 'LEGEND_FOUNDER') {
+        dataToShow = STEPS_LEGEND_FOUNDER; // <--- Nota il nome nuovo
+        titleText = "LEGENDA FOUNDER 👑";
+        subTitleText = "Controllo Totale (By Massimo)";
     }
     // Caso Founder (Usa gli step Admin ma con titolo da Re)
     else if (userRole === 'FOUNDER') {
