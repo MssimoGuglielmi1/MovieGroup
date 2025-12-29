@@ -375,11 +375,19 @@ useEffect(() => {
             signOut(auth);
             setUserRole(null);
             Alert.alert("Accesso Negato", "Il tuo account è stato rimosso o disabilitato.");
-        } else {
+} else {
             const data = docSnap.data();
-            if (data.isApproved === false) {
+            
+            // 1. CONTROLLO SOSPENSIONE (AGGIUNTO)
+            if (data.isSuspended === true) {
+                setUserRole("SUSPENDED"); 
+            } 
+            // 2. CONTROLLO APPROVAZIONE
+            else if (data.isApproved === false) {
                setUserRole({ status: "PENDING_APPROVAL", originalRole: data.role });
-            } else {
+            } 
+            // 3. ACCESSO OK
+            else {
                setUserRole(data.role);
                registerForPushNotificationsAsync(currentUser.uid);
             }
@@ -401,7 +409,23 @@ useEffect(() => {
 
   if (loadingApp) return <View style={[styles.container, {justifyContent:'center', alignItems:'center'}]}><ActivityIndicator size="large" color="#06b6d4"/></View>;
   if (!currentUser) return <AuthScreen />;
-
+// --- SCHERMATA ACCESSO SOSPESO ---
+  if (userRole === "SUSPENDED") {
+      return (
+          <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center', padding:30}}>
+              <StatusBar barStyle="light-content" backgroundColor="#000"/>
+              <Feather name="lock" size={80} color="#FF9500" style={{marginBottom:30}} />
+              <Text style={{color:'#FFF', fontSize:24, fontWeight:'900', textAlign:'center', marginBottom:15}}>ACCESSO SOSPESO</Text>
+              <Text style={{color:'#8E8E93', fontSize:16, textAlign:'center', marginBottom:40, lineHeight:24}}>
+                  Il tuo account è stato momentaneamente congelato (Pausa Stagionale/Amministrativa).{'\n'}
+                  Contatta l'amministrazione per riattivarlo.
+              </Text>
+              <TouchableOpacity onPress={() => signOut(auth)} style={styles.buttonRed}>
+                  <Text style={styles.buttonText}>ESCI</Text>
+              </TouchableOpacity>
+          </View>
+      );
+  }
   if (userRole && typeof userRole === 'object' && userRole.status === "PENDING_APPROVAL") {
       return <PendingApprovalScreen userRole={userRole.originalRole} />;
   }
@@ -454,49 +478,15 @@ const styles = StyleSheet.create({
   buttonText: { color: '#ffffff', fontSize: 18, fontWeight: 'bold' },
   linkButton: { marginTop: 20, alignItems: 'center' },
   linkText: { color: '#94a3b8', fontSize: 14 },
-  
   companyInfo: { marginTop: 40, alignItems: 'center', paddingBottom: 20 },
-  companyInfoText: { color: '#64748b', fontSize: 12, marginTop: 2 },
-  
+  companyInfoText: { color: '#64748b', fontSize: 12, marginTop: 2 }, 
   passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, borderWidth: 1, borderColor: '#334155', marginBottom: 20, paddingHorizontal: 16 },
   inputInside: { flex: 1, color: '#ffffff', fontSize: 16, paddingVertical: 14 },
-  logo: {
-    width: 250,
-    height: 100,
-    resizeMode: 'contain',
-    marginBottom: 20,
-  },
-  contactBtn: {
-      padding: 12,
-      backgroundColor: '#1e293b',
-      borderRadius: 50,
-      borderWidth: 1,
-      borderColor: '#334155'
-  },
-  // --- NUOVI STILI PER LA FIRMA ---
-  footerContainer: {
-    marginTop: 40,
-    alignItems: 'center',
-    paddingBottom: 30,
-    width: '100%',
-  },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginBottom: 20, // Questo è lo spazio tra le icone e la tua firma
-  },
-  creditText: {
-    color: '#6e6e73', // Grigio "Apple" elegante
-    fontSize: 10,
-    textTransform: 'uppercase', // Tutto maiuscolo
-    letterSpacing: 1.5, // Lettere spaziate
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  creditName: {
-    color: '#FFFFFF', // Il tuo nome in bianco brillante
-    fontWeight: '900', // Molto grassetto
-    fontSize: 11,
-  },
+  logo: {width: 250,height: 100,resizeMode: 'contain',marginBottom: 20,},
+  contactBtn: {padding: 12,backgroundColor: '#1e293b',borderRadius: 50,borderWidth: 1,borderColor: '#334155'},
+  footerContainer: {marginTop: 40,alignItems: 'center',paddingBottom: 30,width: '100%',},
+  socialRow: {flexDirection: 'row',justifyContent: 'center',gap: 20,marginBottom: 20,},
+  creditText: {color: '#6e6e73',fontSize: 10,textTransform: 'uppercase',letterSpacing: 1.5,textAlign: 'center',lineHeight: 16,},
+  creditName: {color: '#FFFFFF',fontWeight: '900',fontSize: 11,},
+  buttonRed: { backgroundColor: '#ef4444', padding: 9, borderRadius: 8, alignItems: 'center', width:'40%' },
 });

@@ -8,7 +8,7 @@ import { collection, query, where, onSnapshot, doc, deleteDoc, getDoc, updateDoc
 const Colors = {
     background: '#000000', surface: '#1C1C1E', textMain: '#FFFFFF', textSub: '#8E8E93',
     primary: '#4CAF50', accent: '#0A84FF', border: '#2C2C2E', error: '#FF453A',
-    cyan: '#00D1FF', yellow: '#EAB308', purple: '#BF5AF2', info: '#64748B'
+    cyan: '#00D1FF', yellow: '#EAB308', purple: '#BF5AF2', info: '#64748B', orange: '#FF9500',
 };
 
 export default function AdminStaffScreen({ navigation, route }) {
@@ -180,7 +180,7 @@ export default function AdminStaffScreen({ navigation, route }) {
             }
         }
     };
-    const handleApproveAction = (user) => {
+        const handleApproveAction = (user) => {
         if (!handleAccept) return;
         const requestedRole = user.role || 'COLLABORATORE';
         Alert.alert("Conferma", `Approvare come ${requestedRole}?`, [
@@ -190,7 +190,7 @@ export default function AdminStaffScreen({ navigation, route }) {
     };
 
 // --- NUOVA LOGICA SWITCH (BILINGUE WEB/APP) ---
-    const handleSwitchRole = (user) => {
+        const handleSwitchRole = (user) => {
         if (user.id === currentUserId) return;
         const newRole = user.role === 'AMMINISTRATORE' ? 'COLLABORATORE' : 'AMMINISTRATORE';
         
@@ -226,15 +226,15 @@ export default function AdminStaffScreen({ navigation, route }) {
         }
     };
 
-    const openDetails = (user) => { setSelectedUser(user); setModalVisible(true); };
-    const copyToClipboard = (label, text) => { if(text) Alert.alert("Copiato", `${label}: ${text}`); };
-    const makeCall = (phoneNumber) => {
+        const openDetails = (user) => { setSelectedUser(user); setModalVisible(true); };
+        const copyToClipboard = (label, text) => { if(text) Alert.alert("Copiato", `${label}: ${text}`); };
+        const makeCall = (phoneNumber) => {
         if (!phoneNumber) return Alert.alert("No Numero", "L'utente non ha inserito il cellulare.");
         Linking.openURL(`tel:${phoneNumber.replace(/\s/g, '')}`);
     };
-    const handleInfoAction = () => { Alert.alert("Info Staff", "Qui si aprirà la Welcome Modal."); };
+        const handleInfoAction = () => { Alert.alert("Info Staff", "Qui si aprirà la Welcome Modal."); };
 
-const renderItem = ({ item }) => {
+        const renderItem = ({ item }) => {
         const isUserAdmin = item.role === 'AMMINISTRATORE';
         const badgeColor = isUserAdmin ? Colors.cyan : Colors.primary;
         const isRequestMode = mode === 'PENDING_ACCESS_ALL' || mode === 'PENDING_ADMINS';
@@ -247,8 +247,46 @@ const renderItem = ({ item }) => {
         // Accetta sia il VERO (boolean) che il TESTO "true" (stringa)
         const isVerified = item.emailVerified === true || item.emailVerified === "true";
 
-        // DEBUG: Se non vedi la spunta, guarda la console nera del terminale!
-        // console.log(`Utente: ${item.firstName}, Verified: ${item.emailVerified} (${typeof item.emailVerified})`);
+// --- FUNZIONE CONGELAMENTO (SOSPENSIONE) ---
+        const toggleSuspension = async (user) => {
+        // 1. Non puoi congelare te stesso
+        if (user.id === currentUserId) return; 
+
+        // 2. Capiamo lo stato attuale
+        const isCurrentlySuspended = user.isSuspended === true;
+        const newStatus = !isCurrentlySuspended;
+        const action = isCurrentlySuspended ? "RIATTIVARE" : "SOSPENDERE";
+
+        // 3. Funzione che esegue la modifica su Firebase
+        const executeFreeze = async () => {
+            try {
+                // Scrive nel database il campo 'isSuspended'
+                await updateDoc(doc(db, "users", user.id), { isSuspended: newStatus });
+                
+                if (Platform.OS === 'web') alert(`Fatto: Utente ${newStatus ? 'Sospeso' : 'Riattivato'}.`);
+            } catch (e) {
+                Alert.alert("Errore", e.message);
+            }
+        };
+
+        // 4. Chiediamo conferma (Diversa per Web e App)
+        if (Platform.OS === 'web') {
+            if (confirm(`Conferma: Vuoi ${action} l'account di ${user.firstName}?`)) executeFreeze();
+        } else {
+            Alert.alert(
+                isCurrentlySuspended ? "Scongela Utente" : "Congela Utente ❄️",
+                `Vuoi ${action} l'accesso di ${user.firstName}?`,
+                [
+                    { text: "Annulla", style: "cancel" },
+                    { 
+                        text: isCurrentlySuspended ? "RIATTIVA" : "SOSPENDI", 
+                        style: isCurrentlySuspended ? "default" : "destructive", 
+                        onPress: executeFreeze 
+                    }
+                ]
+            );
+        }
+    };
 
         return (
             <TouchableOpacity 
@@ -322,6 +360,25 @@ const renderItem = ({ item }) => {
                             <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}><Feather name="file-text" size={16} color={Colors.accent} /></TouchableOpacity>
                             {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
                                 <TouchableOpacity onPress={() => handleSwitchRole(item)} style={[styles.iconBtn, {backgroundColor: Colors.purple+'20'}]}><Feather name="refresh-cw" size={14} color={Colors.purple} /></TouchableOpacity>
+                            )}
+{/* --- TASTO 6: CONGELA (Solo Founder) --- */}
+                            {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
+                                <TouchableOpacity 
+                                    onPress={() => toggleSuspension(item)} 
+                                    style={[
+                                        styles.iconBtn, 
+                                        {   // Se è sospeso diventa arancione, altrimenti è grigio scuro
+                                            backgroundColor: item.isSuspended ? Colors.orange+'30' : Colors.border,
+                                            marginRight: 6 
+                                        }
+                                    ]}
+                                >
+                                    <Feather 
+                                        name={item.isSuspended ? "lock" : "unlock"} 
+                                        size={16} 
+                                        color={item.isSuspended ? Colors.orange : Colors.textSub} 
+                                    />
+                                </TouchableOpacity>
                             )}
                             {item.id !== currentUserId && (
                                 <TouchableOpacity onPress={() => handleRemoveAction(item)} style={[styles.iconBtn, {backgroundColor: Colors.error+'20'}]}><Feather name="trash-2" size={16} color={Colors.error} /></TouchableOpacity>
