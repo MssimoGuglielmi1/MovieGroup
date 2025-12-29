@@ -164,9 +164,9 @@ export default function WelcomeModal({ visible, onClose, userRole }) {
         dataToShow = STEPS_ADMIN; 
         titleText = "AMMINISTRAZIONE SUPREMA 👑";
     }
-    // 🔥 CASO LEGENDA ADMIN 🔥
+// 🔥 CASO LEGENDA ADMIN 🔥
     else if (userRole === 'LEGEND_ADMIN') {
-        dataToShow = STEPS_LEGEND_ADMIN;
+        dataToShow = STEPS_LEGEND_ADMIN; // <--- Deve esserci scritto questo
         titleText = "LEGENDA ADMIN 🛡️";
         subTitleText = "Strumenti Gestione Staff";
     }
