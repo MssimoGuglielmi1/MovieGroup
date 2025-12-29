@@ -1,6 +1,6 @@
 //AdminStaffScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Modal, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Modal, Linking, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -21,6 +21,7 @@ export default function AdminStaffScreen({ navigation, route }) {
     const [highlightedIds, setHighlightedIds] = useState([]); 
     const [selectedUser, setSelectedUser] = useState(null); 
     const [modalVisible, setModalVisible] = useState(false);
+    const [searchText, setSearchText] = useState('');
 
     useEffect(() => {
         const init = async () => {
@@ -423,9 +424,16 @@ export default function AdminStaffScreen({ navigation, route }) {
     };
 
     const isFounder = viewerRole === 'FOUNDER';
+    // --- LOGICA FILTRO RICERCA ---
+    const filteredStaff = staff.filter(user => {
+        if (!searchText) return true; // Se è vuoto, mostra tutti
+        const searchLower = searchText.toLowerCase();
+        const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
+        return fullName.includes(searchLower); // Cerca nel nome e cognome
+    });
     const pageTitle = mode === 'PENDING_ACCESS_ALL' ? `RICHIESTE (${staff.length})` : `GESTIONE STAFF (${staff.length})`;
 
-    return (
+return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
             <View style={styles.header}>
@@ -434,14 +442,33 @@ export default function AdminStaffScreen({ navigation, route }) {
                 <View style={{width:24}}/>
             </View>
 
+            {/* --- NUOVA BARRA DI RICERCA --- */}
+            <View style={styles.searchContainer}>
+                <Feather name="search" size={20} color={Colors.textSub} style={{marginRight: 10}} />
+                <TextInput 
+                    style={styles.searchInput}
+                    placeholder="Cerca collaboratore..."
+                    placeholderTextColor={Colors.textSub}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                />
+                {searchText.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchText('')}>
+                        <Feather name="x" size={20} color={Colors.textSub} />
+                    </TouchableOpacity>
+                )}
+            </View>
+
             {loading ? <ActivityIndicator style={{marginTop:50}} color={Colors.primary} /> :
             <FlatList
-                data={staff}
+                data={filteredStaff} // <--- CAMBIA 'staff' CON 'filteredStaff'
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
-                contentContainerStyle={{ padding: 20 }}
-                ListEmptyComponent={<Text style={styles.emptyText}>Nessun utente in lista.</Text>}
+                contentContainerStyle={{ padding: 20, paddingTop: 5 }} // Un po' meno padding sopra
+                ListEmptyComponent={<Text style={styles.emptyText}>Nessun risultato.</Text>}
             />}
+            
+            {/* ... qui sotto c'è il resto (Modals, etc.) ... */}
             
              <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                 <View style={styles.modalOverlay}>
@@ -500,5 +527,8 @@ const styles = StyleSheet.create({
     sectionHeader: { color: Colors.accent, fontSize: 12, fontWeight: 'bold', marginBottom: 10 },
     sensitiveBox: { backgroundColor: '#000', padding: 15, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
     boxLabel: { color: Colors.textSub, fontSize: 10, marginBottom: 4 },
-    boxValue: { color: Colors.textMain, fontSize: 16, fontWeight: 'bold' }
+    boxValue: { color: Colors.textMain, fontSize: 16, fontWeight: 'bold' },
+    searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',marginHorizontal: 20,marginBottom: 10,paddingHorizontal: 15,borderRadius: 10,
+    heiht: 45,},
+    searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
 });
