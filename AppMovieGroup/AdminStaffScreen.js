@@ -241,7 +241,20 @@ export default function AdminStaffScreen({ navigation, route }) {
         
         // Verifica oscuramento
         const isRestricted = item.hideMoney === true && isUserAdmin; 
-        const cardBorderColor = isRestricted ? Colors.yellow : Colors.border;
+        const isSuspended = item.isSuspended === true; 
+
+        // 🔥 EFFETTO VISIVO: ARANCIONE SE SOSPESO 🔥
+        const cardStyle = isSuspended 
+            ? { 
+                backgroundColor: 'rgba(255, 149, 0, 0.15)', // Sfondo Arancione trasparente
+                borderColor: Colors.orange, 
+                borderWidth: 2 
+              } 
+            : { 
+                backgroundColor: Colors.surface, // Sfondo normale
+                borderColor: isRestricted ? Colors.yellow : Colors.border,
+                borderWidth: 1
+              };
 
         // --- 🔥 FIX INTELLIGENTE 🔥 ---
         // Accetta sia il VERO (boolean) che il TESTO "true" (stringa)
@@ -289,11 +302,12 @@ export default function AdminStaffScreen({ navigation, route }) {
     };
 
         return (
-            <TouchableOpacity 
+<TouchableOpacity 
                 activeOpacity={0.9}
                 onLongPress={() => toggleMoneyVisibility(item)} 
                 delayLongPress={800}
-                style={[styles.card, { borderColor: cardBorderColor, borderWidth: isRestricted ? 2 : 1 }]}
+                style={[styles.card, cardStyle]} // <--- ECCO LA MODIFICA
+                onPress={() => openDetails(item)}
             >
                 <View style={styles.userInfo}>
                     {/* AVATAR */}
@@ -355,38 +369,52 @@ export default function AdminStaffScreen({ navigation, route }) {
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <View style={styles.columnActions}>
+<View style={styles.columnActions}>
+                        
+                        {/* RIGA 1: GESTIONE (3 Tasti) */}
                         <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}><Feather name="file-text" size={16} color={Colors.accent} /></TouchableOpacity>
+                            {/* 1. Dettagli (Blu) */}
+                            <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}>
+                                <Feather name="file-text" size={16} color={Colors.accent} />
+                            </TouchableOpacity>
+                            
+                            {/* 2. Ruolo (Viola) - Solo Founder */}
                             {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
-                                <TouchableOpacity onPress={() => handleSwitchRole(item)} style={[styles.iconBtn, {backgroundColor: Colors.purple+'20'}]}><Feather name="refresh-cw" size={14} color={Colors.purple} /></TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleSwitchRole(item)} style={[styles.iconBtn, {backgroundColor: Colors.purple+'20'}]}>
+                                    <Feather name="refresh-cw" size={14} color={Colors.purple} />
+                                </TouchableOpacity>
                             )}
-{/* --- TASTO 6: CONGELA (Solo Founder) --- */}
+
+                            {/* 3. CONGELA (Arancione) - Solo Founder */}
+                            {/* NOTA: Ho tolto marginRight: 6 per allinearlo perfettamente col cestino sotto */}
                             {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
                                 <TouchableOpacity 
                                     onPress={() => toggleSuspension(item)} 
-                                    style={[
-                                        styles.iconBtn, 
-                                        {   // Se è sospeso diventa arancione, altrimenti è grigio scuro
-                                            backgroundColor: item.isSuspended ? Colors.orange+'30' : Colors.border,
-                                            marginRight: 6 
-                                        }
-                                    ]}
+                                    style={[styles.iconBtn, {backgroundColor: isSuspended ? Colors.orange : Colors.border}]}
                                 >
-                                    <Feather 
-                                        name={item.isSuspended ? "lock" : "unlock"} 
-                                        size={16} 
-                                        color={item.isSuspended ? Colors.orange : Colors.textSub} 
-                                    />
+                                    <Feather name={isSuspended ? "lock" : "unlock"} size={16} color={isSuspended ? '#FFF' : Colors.textSub} />
                                 </TouchableOpacity>
                             )}
-                            {item.id !== currentUserId && (
-                                <TouchableOpacity onPress={() => handleRemoveAction(item)} style={[styles.iconBtn, {backgroundColor: Colors.error+'20'}]}><Feather name="trash-2" size={16} color={Colors.error} /></TouchableOpacity>
-                            )}
                         </View>
+
+                        {/* RIGA 2: AZIONI (3 Tasti) */}
                         <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => makeCall(item.phoneNumber)} style={[styles.iconBtn, {backgroundColor: Colors.primary+'20'}]}><Feather name="phone" size={16} color={Colors.primary} /></TouchableOpacity>
-                            <TouchableOpacity onPress={handleInfoAction} style={[styles.iconBtn, {backgroundColor: Colors.info+'20'}]}><Feather name="info" size={16} color={Colors.info} /></TouchableOpacity>
+                            {/* 4. Telefono (Verde) */}
+                            <TouchableOpacity onPress={() => makeCall(item.phoneNumber)} style={[styles.iconBtn, {backgroundColor: Colors.primary+'20'}]}>
+                                <Feather name="phone" size={16} color={Colors.primary} />
+                            </TouchableOpacity>
+                            
+                            {/* 5. Info (Grigio) */}
+                            <TouchableOpacity onPress={handleInfoAction} style={[styles.iconBtn, {backgroundColor: Colors.info+'20'}]}>
+                                <Feather name="info" size={16} color={Colors.info} />
+                            </TouchableOpacity>
+
+                            {/* 6. CESTINO (Rosso) */}
+                            {item.id !== currentUserId && (
+                                <TouchableOpacity onPress={() => handleRemoveAction(item)} style={[styles.iconBtn, {backgroundColor: Colors.error+'20'}]}>
+                                    <Feather name="trash-2" size={16} color={Colors.error} />
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </View>
                 )}
