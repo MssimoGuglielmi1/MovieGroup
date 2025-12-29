@@ -264,6 +264,7 @@ export default function AdminStaffScreen({ navigation, route }) {
         // --- 🔥 FIX INTELLIGENTE 🔥 ---
         // Accetta sia il VERO (boolean) che il TESTO "true" (stringa)
         const isVerified = item.emailVerified === true || item.emailVerified === "true";
+        const canManage = viewerRole === 'FOUNDER' || item.role !== 'AMMINISTRATORE';
 
 // --- FUNZIONE CONGELAMENTO (SOSPENSIONE) ---
         const toggleSuspension = async (user) => {
@@ -376,33 +377,45 @@ export default function AdminStaffScreen({ navigation, route }) {
                 ) : (
 <View style={styles.columnActions}>
                         
-                        {/* RIGA 1: GESTIONE (3 Tasti) */}
+                        {/* RIGA 1: GESTIONE SUPERIORE */}
                         <View style={styles.rowActions}>
-                            {/* 1. Dettagli (Blu) */}
-                            <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}>
-                                <Feather name="file-text" size={16} color={Colors.accent} />
-                            </TouchableOpacity>
+                            {/* 1. Dettagli (Blu) - RIMANE SOLO FOUNDER */}
+                            {viewerRole === 'FOUNDER' && (
+                                <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}>
+                                    <Feather name="file-text" size={16} color={Colors.accent} />
+                                </TouchableOpacity>
+                            )}
                             
-                            {/* 2. Ruolo (Viola) - Solo Founder */}
+                            {/* 2. Ruolo (Viola) - RIMANE SOLO FOUNDER */}
                             {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
                                 <TouchableOpacity onPress={() => handleSwitchRole(item)} style={[styles.iconBtn, {backgroundColor: Colors.purple+'20'}]}>
                                     <Feather name="refresh-cw" size={14} color={Colors.purple} />
                                 </TouchableOpacity>
                             )}
 
-                            {/* 3. CONGELA (Arancione) - Solo Founder */}
-                            {/* NOTA: Ho tolto marginRight: 6 per allinearlo perfettamente col cestino sotto */}
-                            {viewerRole === 'FOUNDER' && item.id !== currentUserId && (
+{/* 3. CONGELA (Arancione) - SOLO SE POSSO GESTIRE */}
+                            {item.id !== currentUserId && canManage && (
                                 <TouchableOpacity 
                                     onPress={() => toggleSuspension(item)} 
-                                    style={[styles.iconBtn, {backgroundColor: isSuspended ? Colors.orange : Colors.border}]}
+                                    style={[
+                                        styles.iconBtn, 
+                                        { 
+                                            // Se Sospeso: Arancione Pieno. Se Sbloccato: Arancione Chiaro (Trasparente)
+                                            backgroundColor: isSuspended ? Colors.orange : Colors.orange + '20' 
+                                        }
+                                    ]}
                                 >
-                                    <Feather name={isSuspended ? "lock" : "unlock"} size={16} color={isSuspended ? '#FFF' : Colors.textSub} />
+                                    <Feather 
+                                        name={isSuspended ? "lock" : "unlock"} 
+                                        size={16} 
+                                        // Se Sospeso: Bianco. Se Sbloccato: Arancione
+                                        color={isSuspended ? '#FFF' : Colors.orange} 
+                                    />
                                 </TouchableOpacity>
                             )}
                         </View>
 
-                        {/* RIGA 2: AZIONI (3 Tasti) */}
+                        {/* RIGA 2: AZIONI COMUNI */}
                         <View style={styles.rowActions}>
                             {/* 4. Telefono (Verde) */}
                             <TouchableOpacity onPress={() => makeCall(item.phoneNumber)} style={[styles.iconBtn, {backgroundColor: Colors.primary+'20'}]}>
@@ -415,7 +428,7 @@ export default function AdminStaffScreen({ navigation, route }) {
                             </TouchableOpacity>
 
                             {/* 6. CESTINO (Rosso) */}
-                            {item.id !== currentUserId && (
+                            {item.id !== currentUserId && canManage && (
                                 <TouchableOpacity onPress={() => handleRemoveAction(item)} style={[styles.iconBtn, {backgroundColor: Colors.error+'20'}]}>
                                     <Feather name="trash-2" size={16} color={Colors.error} />
                                 </TouchableOpacity>
@@ -501,10 +514,12 @@ return (
                     </View>
                 </View>
             </Modal>
+{/* USIAMO IL WELCOME MODAL CON LOGICA DINAMICA */}
             <WelcomeModal 
                 visible={showLegend} 
                 onClose={() => setShowLegend(false)} 
-                userRole="LEGEND" 
+                // Se sono FOUNDER passo "LEGEND_FOUNDER", altrimenti "LEGEND_ADMIN"
+                userRole={viewerRole === 'FOUNDER' ? "LEGEND_FOUNDER" : "LEGEND_ADMIN"} 
             />
         </SafeAreaView>
     );

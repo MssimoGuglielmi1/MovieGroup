@@ -34,7 +34,6 @@ import MostroRivoluzionario from './MostroRivoluzionario';
 import StoricoFounder from './StoricoFounder';
 import PDFDelFounder from './PDFDelFounder';
 import TurnoDimenticato from './TurnoDimenticato';
-import WidgetListaStaffAttivoAdmin from './WidgetListaStaffAttivoAdmin';
 import CollaboratorHistoryScreen from './CollaboratorHistoryScreen';
 import ModificaTurno from './ModificaTurno';
 import CamerinoStaff from './CamerinoStaff';
@@ -440,7 +439,6 @@ useEffect(() => {
   if (screenOverride === 'ShiftManagementScreen') return <ShiftManagementScreen navigation={{ goBack: handleGoBack, navigate: handleNavigate }} route={{ params: shiftCreationParams }} />;
   if (screenOverride === 'CamerinoStaff') return <CamerinoStaff navigation={{ goBack: handleGoBack }} />;
   if (screenOverride === 'StoricoFounder') return <StoricoFounder navigation={{ goBack: handleGoBack }} />;
-  if (screenOverride === 'WidgetListaStaffAttivoAdmin') return <WidgetListaStaffAttivoAdmin navigation={{ goBack: handleGoBack }} route={{ params: shiftCreationParams }} />;
 
   // HOME PAGE
   if (userRole === "FOUNDER") return <FounderHome navigation={{ navigate: handleNavigate }} />;

@@ -76,7 +76,7 @@ export default function AdminHome({ navigation }) {
     const qStaff = query(collection(db, "users"), where("isApproved", "==", true));
     const unsubStaff = onSnapshot(qStaff, (snap) => setStaffList(snap.docs.map(d => ({id: d.id, ...d.data()})).filter(d => d.role !== 'FOUNDER')));
 
-const qShifts = query(collection(db, "shifts"));
+    const qShifts = query(collection(db, "shifts"));
     const unsubShifts = onSnapshot(qShifts, (snap) => {
         // 1. Scarichiamo
         let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -97,7 +97,7 @@ const qShifts = query(collection(db, "shifts"));
         setLoading(false);
     });
 
-    return () => { unsubPending(); unsubActive(); unsubStaff(); unsubShifts(); };
+    return () => { unsubPending(); unsubActive(); unsubShifts(); };
   }, []);
 
   // --- LOGICA OPERATIVA (Timer, GPS, Azioni per Admin Operativo) ---
@@ -256,7 +256,7 @@ const qShifts = query(collection(db, "shifts"));
   };
 
   const goToShiftMgmt = () => navigation.navigate('ShiftManagementScreen', { shiftsPending, shiftsActive, shiftsCompleted });
-  const goToStaff = () => navigation.navigate('WidgetListaStaffAttivoAdmin', { staffData: staffList }); 
+  const goToStaff = () => navigation.navigate('AdminStaffScreen');
   const handleCreateShift = () => navigation.navigate('CreateShiftScreen', { activeCollaborators: activeCollaborators });
   const goToProfile = () => navigation.navigate('CamerinoStaff');
 
@@ -306,23 +306,22 @@ const qShifts = query(collection(db, "shifts"));
                 "Registrazioni", 
                 pendingUsers.length, 
                 "user-plus", 
-                pendingUsers.length > 0 ? CurrentColors.error : CurrentColors.cyan, 
+                CurrentColors.error, // 🔥 MODIFICA: ORA È SEMPRE ROSSO (Come il Founder)
                 pendingUsers.length > 0 ? () => navigation.navigate('AdminStaffScreen', { 
                     mode: 'PENDING_ACCESS_ALL',
                     data: pendingUsers,
                     
-                    // ACCETTA: Va bene così (non chiede conferma nella Home)
+                    // ACCETTA
                     handleAccept: (id) => handleApprove(id), 
                     
-                    // RIFIUTA (MODIFICATO): Cancellazione DIRETTA (senza chiedere conferma 2 volte)
-// Dentro AdminHome.js, nel renderTile delle Richieste Accesso:
-handleReject: async (id) => {
-    try {
-        await deleteDoc(doc(db, "users", id));
-    } catch (e) {
-        console.error("Errore eliminazione:", e);
-    }
-}
+                    // RIFIUTA
+                    handleReject: async (id) => {
+                        try {
+                            await deleteDoc(doc(db, "users", id));
+                        } catch (e) {
+                            console.error("Errore eliminazione:", e);
+                        }
+                    }
                 }) : null
             )}
             {renderTile("Turni Attivi", shiftsPending.length + shiftsActive.length, "calendar", CurrentColors.primary, goToShiftMgmt)}

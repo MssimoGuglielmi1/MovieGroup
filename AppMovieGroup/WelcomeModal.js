@@ -136,6 +136,12 @@ const STEPS_LEGEND = [
     { icon: 'phone', color: Colors.primary, title: 'CHIAMATA AGILE', desc: 'Avvia una chiamata diretta al numero registrato (Se registrato).                  P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
     { icon: 'trash-2', color: Colors.error, title: 'LICENZIA', desc: 'Dal tasto a forma di cestino, fai: SPARIRE DEFINITIVAMENTE PER SEMPRE SENZA POSSIBILITà DI RECUPERO INFO, LUTENTE (CONSIGLIO VIVAMENTE DI LICENZIARE SOLO DOPO AVER FATTO LA BUSTA PAGA, NEL MENTRE PREMI IL LUCCHETTO COSI GLI IMPEDISCI LACCESSO IN APP, PER QUALSIASI DOMANDA CHIAMAMI BY MASSIMO).' }
 ];
+const STEPS_LEGEND_ADMIN = [
+    { icon: 'lock', color: Colors.orange, title: 'CONGELA (Arancione)', desc: 'Blocca temporaneamente l\'accesso.' },
+    { icon: 'phone', color: Colors.primary, title: 'CHIAMA (Verde)', desc: 'Avvia una chiamata diretta.' },
+    { icon: 'info', color: Colors.info, title: 'LEGENDA (Grigio)', desc: 'Spiegazione icone.' },
+    { icon: 'trash-2', color: Colors.error, title: 'ELIMINA (Rosso)', desc: 'Rimuove il collaboratore.' }
+];
 
 export default function WelcomeModal({ visible, onClose, userRole }) {
     
@@ -158,6 +164,12 @@ export default function WelcomeModal({ visible, onClose, userRole }) {
     else if (userRole === 'FOUNDER') {
         dataToShow = STEPS_ADMIN; 
         titleText = "AMMINISTRAZIONE SUPREMA 👑";
+    }
+    // 🔥 CASO LEGENDA ADMIN 🔥
+    else if (userRole === 'LEGEND_ADMIN') {
+        dataToShow = STEPS_LEGEND_ADMIN;
+        titleText = "LEGENDA ADMIN 🛡️";
+        subTitleText = "Strumenti Gestione Staff";
     }
 
     return (
