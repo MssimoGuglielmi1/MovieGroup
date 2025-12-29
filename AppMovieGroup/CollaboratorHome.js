@@ -37,6 +37,7 @@ export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile,
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showGuide, setShowGuide] = useState(false);
+  const [showProfileWarning, setShowProfileWarning] = useState(false);
 
   // IMPORTANTE: Definiamo gli stili qui dentro o usiamo un useMemo, ma per semplicità ora lo metto qui sotto la definizione
   const styles = getStyles(CurrentColors);
@@ -68,7 +69,18 @@ export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile,
     if (!currentUser) return;
     setLoading(true);
 
-    getDoc(doc(db, "users", currentUser.uid)).then(docSnap => { if(docSnap.exists()) setUser(docSnap.data()); });
+getDoc(doc(db, "users", currentUser.uid)).then(docSnap => { 
+    if(docSnap.exists()) {
+        const data = docSnap.data();
+        setUser(data);
+
+        // CONTROLLO DATI MANCANTI
+        const isMissingData = !data.phoneNumber || !data.codiceFiscale || !data.iban;
+        if (isMissingData) {
+            setShowProfileWarning(true); // <--- Apre il modal se mancano dati
+        }
+    } 
+});
 
     const qInvites = query(collection(db, "shifts"), where("collaboratorId", "==", currentUser.uid), where("status", "==", "assegnato"));
     const unsubInvites = onSnapshot(qInvites, (snap) => { setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); });
@@ -443,6 +455,30 @@ export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile,
           onClose={() => setShowGuide(false)} 
           userRole="COLLABORATORE" 
       />
+      {/* MODAL AVVISO PROFILO INCOMPLETO */}
+      {showProfileWarning && (
+          <View style={styles.warningOverlay}>
+              <View style={styles.warningBox}>
+                  <Feather name="user-plus" size={40} color={Colors.yellow} />
+                  <Text style={styles.warningTitle}>PROFILO INCOMPLETO ⚠️</Text>
+                  <Text style={styles.warningText}>
+                      Il tuo profilo è attualmente "INCOMPLETO", ricordati di compilare i campi evidenziati in rosso, ORA o più tardi.
+                  </Text>
+                  <TouchableOpacity 
+                      style={styles.warningBtn} 
+                      onPress={() => {
+                          setShowProfileWarning(false);
+                          onNavigateProfile(); // Lo manda direttamente al camerino
+                      }}
+                  >
+                      <Text style={styles.warningBtnText}>COMPLETA ORA 🖋️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowProfileWarning(false)}>
+                      <Text style={{color: Colors.textSub, marginTop: 15, fontSize: 12}}>Lo farò più tardi</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -475,4 +511,32 @@ const getStyles = (Colors) => StyleSheet.create({
   timerTextGreen: { color: Colors.primary, fontWeight: 'bold', fontSize: 12 },
   timerBigText: { color: Colors.textMain, fontSize: 22, fontWeight:'bold', marginTop: 4 },
   timerSubText: { color: Colors.textMain, fontSize: 12, marginTop: 4 },
+  warningOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999
+    },
+    warningBox: {
+        width: '85%',
+        backgroundColor: Colors.surface,
+        borderRadius: 20,
+        padding: 25,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.yellow
+    },
+    warningTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginTop: 15, letterSpacing: 1 },
+    warningText: { color: Colors.textSub, textAlign: 'center', marginTop: 10, lineHeight: 20, fontSize: 14 },
+    warningBtn: { 
+        backgroundColor: Colors.yellow, 
+        paddingVertical: 14, 
+        paddingHorizontal: 30, 
+        borderRadius: 12, 
+        marginTop: 20,
+        width: '100%',
+        alignItems: 'center'
+    },
+    warningBtnText: { color: '#000', fontWeight: 'bold', fontSize: 15 }
 });
