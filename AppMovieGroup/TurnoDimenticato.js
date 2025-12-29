@@ -18,7 +18,8 @@ const Colors = {
 export default function TurnoDimenticato({ navigation, route }) {
     const { activeCollaborators } = route.params || { activeCollaborators: [] };
 
-    const [selectedCollaborator, setSelectedCollaborator] = useState('');
+    // Adesso è una lista (Array) vuota
+    const [selectedCollaborators, setSelectedCollaborators] = useState([]);
     const [location, setLocation] = useState('');
     
     // Default: Ieri
@@ -90,76 +91,94 @@ export default function TurnoDimenticato({ navigation, route }) {
         c.role === 'COLLABORATORE' || c.role === 'AMMINISTRATORE'
     );
 
-    // --- SALVATAGGIO BILINGUE (WEB + APP) ---
+    // --- FUNZIONI MULTI-SELEZIONE ---
+    const toggleCollaborator = (id) => {
+        if (selectedCollaborators.includes(id)) {
+            // Se c'è già, lo togliamo
+            setSelectedCollaborators(prev => prev.filter(cId => cId !== id)); 
+        } else {
+            // Se non c'è, lo aggiungiamo
+            setSelectedCollaborators(prev => [...prev, id]); 
+        }
+    };
+
+    const toggleSelectAll = () => {
+        // Se sono tutti selezionati, svuota tutto. Altrimenti seleziona tutti.
+        if (selectedCollaborators.length === activeCollaborators.length) {
+            setSelectedCollaborators([]); 
+        } else {
+            setSelectedCollaborators(activeCollaborators.map(c => c.id)); 
+        }
+    };
+
+// --- SALVATAGGIO MASSIVO (MITRAGLIATRICE) ---
     const handleSave = async () => {
-        // Validazione Bilingue
-        if (!selectedCollaborator || !location) { 
-            const msg = "Mancano dati: Chi ha lavorato e dove?";
-            if (Platform.OS === 'web') alert(msg); else Alert.alert("Mancano dati", msg);
+        const showAlert = (t, m) => Platform.OS === 'web' ? alert(`${t}: ${m}`) : Alert.alert(t, m);
+
+        // 1. Validazione: Controlliamo se la lista è vuota
+        if (selectedCollaborators.length === 0 || !location) { 
+            showAlert("Mancano dati", "Seleziona almeno una persona e inserisci il luogo.");
             return; 
         }
         if (!isConfigured) { 
-            const msg = "Errore: Configura prima la tariffa base nella Home.";
-            if (Platform.OS === 'web') alert(msg); else Alert.alert("Errore", msg);
+            showAlert("Errore", "Configura prima la tariffa base nella Home.");
             return; 
         }
 
         setLoading(true);
         try {
-            const collabData = activeCollaborators.find(c => c.id === selectedCollaborator);
-            const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
-            const realRole = collabData ? collabData.role : 'COLLABORATORE';
-
-            // --- 🛠️ FIX CENERENTOLA (Gestione Notte) 🛠️ ---
-            // Creiamo gli oggetti data per Start e End usando l'orario locale
+            // Creiamo gli oggetti data per Start e End (Gestione Notte)
             let startObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startTime.getHours(), startTime.getMinutes());
             let endObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endTime.getHours(), endTime.getMinutes());
 
-            // SE la fine è prima dell'inizio (es. 00:00 < 20:00), aggiungi 1 giorno alla fine
             if (endObj < startObj) {
                 endObj.setDate(endObj.getDate() + 1);
             }
-            // ------------------------------------------------
 
-            const shiftData = {
-                collaboratorId: selectedCollaborator,
-                collaboratorName: collabName,
-                collaboratorRole: realRole,
-                location: location,
-                date: formatDate(date),
-                startTime: formatTime(startTime),
-                endTime: formatTime(endTime),
-                payoutRate: payoutRate, 
-                rateType: rateType,
-                // Status forzato a completato
-                status: 'completato',     
-                // Orari reali corretti (con il giorno in più se serve)
-                realStartTime: startObj.toISOString(),
-                realEndTime: endObj.toISOString(),
-                createdBy: auth.currentUser.uid,
-                creatorName: creatorName,
-                createdAt: new Date().toISOString(),
-                isRecovery: true 
-            };
+            // --- CICLO DI CREAZIONE ---
+            const createPromises = selectedCollaborators.map(async (collabId) => {
+                const collabData = activeCollaborators.find(c => c.id === collabId);
+                const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
+                const realRole = collabData ? collabData.role : 'COLLABORATORE';
 
-            await addDoc(collection(db, "shifts"), shiftData);
+                const shiftData = {
+                    collaboratorId: collabId,
+                    collaboratorName: collabName,
+                    collaboratorRole: realRole,
+                    location: location,
+                    date: formatDate(date),
+                    startTime: formatTime(startTime),
+                    endTime: formatTime(endTime),
+                    payoutRate: payoutRate, 
+                    rateType: rateType,
+                    status: 'completato', // Nasce già completato (è un recupero!)
+                    realStartTime: startObj.toISOString(),
+                    realEndTime: endObj.toISOString(),
+                    createdBy: auth.currentUser.uid,
+                    creatorName: creatorName,
+                    createdAt: new Date().toISOString(),
+                    isRecovery: true 
+                };
 
-            // --- INVIO NOTIFICA ---
-            if (collabData && collabData.expoPushToken) {
-                await sendPushNotification(collabData.expoPushToken, "📝 Aggiornamento Storico", `È stato aggiunto un turno passato a ${location} nel tuo storico.`);
-            }
-            // ----------------------
+                await addDoc(collection(db, "shifts"), shiftData);
 
-            // Successo Bilingue
-            const successMsg = "Recuperato! Il turno è stato salvato in archivio.";
-            if (Platform.OS === 'web') alert(successMsg); 
-            else Alert.alert("Recuperato!", successMsg);
+                // Notifica Push (Opzionale per recupero, ma utile)
+                if (collabData && collabData.expoPushToken) {
+                    await sendPushNotification(collabData.expoPushToken, "📝 Aggiornamento Storico", `È stato aggiunto un turno passato a ${location} nel tuo storico.`);
+                }
+            });
+
+            // Aspettiamo che tutti i salvataggi finiscano
+            await Promise.all(createPromises);
+
+            showAlert("Recuperato!", `${selectedCollaborators.length} Turni salvati in archivio.`);
             
-            navigation.goBack();
+            // --- NON TORNA INDIETRO ---
+            setSelectedCollaborators([]); // Pulisce solo i nomi
+            // Location, Data e Ora restano lì pronte per il prossimo gruppo
+
         } catch (error) { 
-            const errorMsg = "Impossibile salvare: " + error.message;
-            if (Platform.OS === 'web') alert(errorMsg); 
-            else Alert.alert("Errore", errorMsg);
+            showAlert("Errore", "Impossibile salvare: " + error.message);
         } 
         finally { setLoading(false); }
     };
@@ -187,27 +206,44 @@ export default function TurnoDimenticato({ navigation, route }) {
                     <Text style={{color:'#000', fontSize:12, flex:1}}>Stai inserendo un turno passato. Verrà salvato direttamente come <Text style={{fontWeight:'bold'}}>COMPLETATO</Text>.</Text>
                 </View>
 
-                {/* SCELTA PERSONA */}
+{/* --- LISTA MULTI-SELEZIONE --- */}
                 <View style={styles.sectionCard}>
-                    <Text style={styles.label}>CHI HA LAVORATO?</Text>
-                    <View style={styles.pickerWrapper}>
-                        <Picker 
-                            selectedValue={selectedCollaborator} 
-                            onValueChange={(v) => setSelectedCollaborator(v)} 
-                            dropdownIconColor={Colors.textPrimary} 
-                            style={{ color: Colors.textPrimary }}
-                            itemStyle={{ color: isWeb ? '#000' : '#FFFFFF' }} // Web vuole nero, iOS bianco
-                        >
-                            <Picker.Item label="Seleziona..." value="" color={Colors.textSecondary}/>
-                            {filteredCollaborators.map((collab) => (
-                                <Picker.Item 
-                                    key={collab.id} 
-                                    label={`${collab.firstName} ${collab.lastName} ${collab.role === 'AMMINISTRATORE' ? '(Admin)' : ''}`} 
-                                    value={collab.id} 
-                                    color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} 
-                                />
-                            ))}
-                        </Picker>
+                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:15}}>
+                        <Text style={styles.label}>CHI HA LAVORATO? ({selectedCollaborators.length})</Text>
+                        <TouchableOpacity onPress={toggleSelectAll}>
+                            <Text style={{color: Colors.primary, fontWeight:'bold', fontSize:12}}>
+                                {selectedCollaborators.length === activeCollaborators.length ? "DESELEZIONA" : "TUTTI"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* STILI LISTA: Ho usato styles.listContainer che dobbiamo aggiungere sotto */}
+                    <View style={styles.listContainer}>
+                        <ScrollView nestedScrollEnabled={true} style={{maxHeight: 250}}>
+                            {activeCollaborators.map((collab) => {
+                                // È selezionato?
+                                const isSelected = selectedCollaborators.includes(collab.id);
+                                return (
+                                    <TouchableOpacity 
+                                        key={collab.id} 
+                                        style={[styles.collabItem, isSelected && styles.collabItemSelected]}
+                                        onPress={() => toggleCollaborator(collab.id)}
+                                    >
+                                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                                            <Feather 
+                                                name={isSelected ? "check-square" : "square"} 
+                                                size={20} 
+                                                color={isSelected ? Colors.success : Colors.textSecondary} 
+                                                style={{marginRight: 10}}
+                                            />
+                                            <Text style={[styles.collabName, isSelected && {color: '#FFF', fontWeight:'bold'}]}>
+                                                {collab.firstName} {collab.lastName} <Text style={{fontSize:10, color: Colors.textSecondary}}>{formatRoleLabel(collab.role)}</Text>
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )
+                            })}
+                        </ScrollView>
                     </View>
                 </View>
 
@@ -305,16 +341,9 @@ const styles = StyleSheet.create({
     timeText: { color: Colors.textPrimary, fontSize: 18, fontWeight: 'bold' },
     saveButton: { backgroundColor: Colors.primary, padding: 20, borderRadius: 16, alignItems: 'center', marginTop: 10, elevation: 5 },
     saveButtonText: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
-    
-    // Stile specifico per input Web
-    webInput: {
-        backgroundColor: '#fff',
-        color: '#000',
-        padding: 10,
-        borderRadius: 8,
-        fontSize: 16,
-        border: '1px solid #333',
-        width: '100%',
-        height: 40
-    }
+    webInput: {backgroundColor: '#fff',color: '#000',padding: 10,borderRadius: 8,fontSize: 16,border: '1px solid #333',width: '100%',height: 40},
+    listContainer: { backgroundColor: '#000', borderRadius: 10, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+    collabItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    collabItemSelected: { backgroundColor: Colors.success + '20' },
+    collabName: { color: Colors.textSecondary, fontSize: 14 },
 });
