@@ -17,7 +17,7 @@ const Colors = {
 export default function CreateShiftScreen({ navigation, route }) {
     const { activeCollaborators } = route.params || { activeCollaborators: [] };
 
-    const [selectedCollaborator, setSelectedCollaborator] = useState('');
+    const [selectedCollaborators, setSelectedCollaborators] = useState([]);
     const [location, setLocation] = useState('');
     
     // Date e Orari
@@ -118,74 +118,104 @@ return () => {
         if(rateType === 'daily') return "A GIORNATA";
         return "ALL'ORA";
     };
+    // --- FUNZIONI MULTI-SELEZIONE ---
+    const toggleCollaborator = (id) => {
+        if (selectedCollaborators.includes(id)) {
+            // Se c'è già, lo togliamo (filtro)
+            setSelectedCollaborators(prev => prev.filter(cId => cId !== id)); 
+        } else {
+            // Se non c'è, lo aggiungiamo alla lista
+            setSelectedCollaborators(prev => [...prev, id]); 
+        }
+    };
 
-// --- FUNZIONE DI SALVATAGGIO BLINDATA ---
+    const toggleSelectAll = () => {
+        // Se sono tutti selezionati, svuota tutto. Altrimenti seleziona tutti.
+        if (selectedCollaborators.length === filteredCollaborators.length) {
+            setSelectedCollaborators([]); 
+        } else {
+            setSelectedCollaborators(filteredCollaborators.map(c => c.id)); 
+        }
+    };
+
+// --- FUNZIONE DI SALVATAGGIO "MITRAGLIATRICE" ---
     const handleSave = async () => {
         const showAlert = (title, msg) => {
             if (Platform.OS === 'web') alert(`${title}: ${msg}`);
             else Alert.alert(title, msg);
         };
 
-        // 1. Validazione Dati Base
-        if (!selectedCollaborator || !location) { 
-            showAlert("Mancano dati", "Seleziona un collaboratore e inserisci il luogo."); 
+        // 1. Validazione: Controlliamo se la lista è vuota
+        if (selectedCollaborators.length === 0 || !location) { 
+            showAlert("Mancano dati", "Seleziona almeno un collaboratore e inserisci il luogo."); 
             return; 
         }
         
-        // 2. Validazione Soldi Sicura
+        // 2. Validazione Soldi
         const safeRate = parseFloat(payoutRate);
         if (!isConfigured || isNaN(safeRate) || safeRate === 0) { 
-            showAlert("Blocco Banca", "Tariffa non valida o non configurata. Controlla le impostazioni."); 
+            showAlert("Blocco Banca", "Tariffa non valida. Controlla le impostazioni."); 
             return; 
         }
 
-        // 3. Controllo Orario Passato
+        // 3. Controllo Orario
         const combinedStart = new Date(
             date.getFullYear(), date.getMonth(), date.getDate(),
             startTime.getHours(), startTime.getMinutes()
         );
 
         const now = new Date();
-        // Tolleranza di 1 minuto
         if (combinedStart < new Date(now.getTime() - 60000)) {
-            showAlert("Orario non valido", "Non puoi assegnare un turno nel passato. Usa 'Turno Dimenticato'.");
+            showAlert("Orario non valido", "Non puoi assegnare un turno nel passato.");
             return; 
         }
 
         setLoading(true);
         try {
-            const collabData = activeCollaborators.find(c => c.id === selectedCollaborator);
-            const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
-            const collabRole = collabData ? collabData.role : 'COLLABORATORE';
+            // --- CICLO DI CREAZIONE MULTIPLO ---
+            // Prepariamo tutte le creazioni in memoria
+            const createShiftPromises = selectedCollaborators.map(async (collabId) => {
+                const collabData = activeCollaborators.find(c => c.id === collabId);
+                const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
+                const collabRole = collabData ? collabData.role : 'COLLABORATORE';
 
-            const shiftData = {
-                collaboratorId: selectedCollaborator,
-                collaboratorName: collabName,
-                collaboratorRole: collabRole,
-                location: location,
-                date: formatDate(date),         // Data Sicura
-                startTime: formatTime(startTime), // Ora Sicura (HH:MM)
-                endTime: formatTime(endTime),     // Ora Sicura (HH:MM)
-                payoutRate: safeRate,
-                rateType: rateType,     
-                status: 'assegnato',     
-                createdBy: auth.currentUser.uid,
-                creatorName: creatorName,
-                createdAt: new Date().toISOString()
-            };
+                const shiftData = {
+                    collaboratorId: collabId,
+                    collaboratorName: collabName,
+                    collaboratorRole: collabRole,
+                    location: location,
+                    date: formatDate(date),
+                    startTime: formatTime(startTime),
+                    endTime: formatTime(endTime),
+                    payoutRate: safeRate,
+                    rateType: rateType,     
+                    status: 'assegnato',     
+                    createdBy: auth.currentUser.uid,
+                    creatorName: creatorName,
+                    createdAt: new Date().toISOString()
+                };
 
-            await addDoc(collection(db, "shifts"), shiftData);
+                // Salvataggio effettivo
+                await addDoc(collection(db, "shifts"), shiftData);
 
-            // Notifica Push
-            if (collabData && collabData.expoPushToken) {
-                await sendPushNotification(collabData.expoPushToken, "📅 Nuovo Turno", `Turno a ${location} il ${formatDate(date)}.`);
-            }
+                // Notifica Push
+                if (collabData && collabData.expoPushToken) {
+                    await sendPushNotification(collabData.expoPushToken, "📅 Nuovo Turno", `Turno a ${location} il ${formatDate(date)}.`);
+                }
+            });
 
-            showAlert("Perfetto!", "Turno assegnato correttamente.");
-            navigation.goBack();
+            // Eseguiamo tutto insieme
+            await Promise.all(createShiftPromises);
+
+            showAlert("SUCCESSO 🚀", `${selectedCollaborators.length} Turni assegnati correttamente!`);
+            
+            // --- NON TORNA INDIETRO (navigation.goBack rimosso) ---
+            setSelectedCollaborators([]); // Pulisce solo i nomi selezionati
+            // Location e orari restano lì per il prossimo inserimento
+
         } catch (error) { 
-            console.error("ERRORE SALVATAGGIO:", error); // Guarda il terminale se fallisce!
-            showAlert("Errore", "Impossibile salvare il turno: " + error.message); 
+            console.error("ERRORE SALVATAGGIO:", error);
+            showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
         } 
         finally { setLoading(false); }
     };
@@ -207,31 +237,52 @@ return () => {
             {isLoadingSettings ? <ActivityIndicator style={{marginTop:100}} color={Colors.primary} size="large" /> :
             <ScrollView contentContainerStyle={styles.content}>
 
-                {/* --- SEZIONE 1: SCELTA PERSONA --- */}
+{/* --- SEZIONE 1: SCELTA PERSONE (MULTI) --- */}
                 <View style={styles.sectionCard}>
-                    <View style={styles.sectionHeader}><Feather name="user" size={18} color={Colors.accent} /><Text style={styles.sectionTitle}>IL TALENTO</Text></View>
-                    <View style={styles.pickerWrapper}>
-                        <Picker 
-                            selectedValue={selectedCollaborator} 
-                            onValueChange={(itemValue) => setSelectedCollaborator(itemValue)} 
-                            dropdownIconColor={Colors.textPrimary} 
-                            style={{ color: Colors.textPrimary }}
-                            itemStyle={{ color: Colors.textPrimary }}
-                        >
-                            <Picker.Item label="Seleziona Collaboratore..." value="" color={Colors.textSecondary}/>
-                            {filteredCollaborators.map((collab) => (
-                                <Picker.Item 
-                                    key={collab.id} 
-                                    label={`${collab.firstName} ${collab.lastName} ${formatRoleLabel(collab.role)}`} 
-                                    value={collab.id} 
-                                    color={Platform.OS === 'ios' ? Colors.textPrimary : "#000"} 
-                                />
-                            ))}
-                        </Picker>
+                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:15}}>
+                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                            <Feather name="users" size={18} color={Colors.accent} />
+                            <Text style={styles.sectionTitle}>SQUADRA ({selectedCollaborators.length})</Text>
+                        </View>
+                        <TouchableOpacity onPress={toggleSelectAll}>
+                            <Text style={{color: Colors.accent, fontWeight:'bold', fontSize:12}}>
+                                {selectedCollaborators.length === filteredCollaborators.length ? "DESELEZIONA" : "TUTTI"}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
+                    
+                    {/* SCROLLVIEW PER LA LISTA NOMI CON SPUNTE */}
+                    <View style={styles.listContainer}>
+                        <ScrollView nestedScrollEnabled={true} style={{maxHeight: 250}}>
+                            {filteredCollaborators.map((collab) => {
+                                // Controlliamo se questo specifico tizio è nella lista dei selezionati
+                                const isSelected = selectedCollaborators.includes(collab.id);
+                                return (
+                                    <TouchableOpacity 
+                                        key={collab.id} 
+                                        style={[styles.collabItem, isSelected && styles.collabItemSelected]}
+                                        onPress={() => toggleCollaborator(collab.id)}
+                                    >
+                                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                                            <Feather 
+                                                name={isSelected ? "check-square" : "square"} 
+                                                size={20} 
+                                                color={isSelected ? Colors.success : Colors.textSecondary} 
+                                                style={{marginRight: 10}}
+                                            />
+                                            <Text style={[styles.collabName, isSelected && {color: '#FFF', fontWeight:'bold'}]}>
+                                                {collab.firstName} {collab.lastName} <Text style={{fontSize:10, color: Colors.textSecondary}}>{formatRoleLabel(collab.role)}</Text>
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )
+                            })}
+                        </ScrollView>
+                    </View>
+
                     {creatorRole !== 'FOUNDER' && (
                         <Text style={{color: Colors.textSecondary, fontSize: 10, marginTop: 8, fontStyle:'italic'}}>
-                            * Gli Admin possono assegnare turni solo ai Collaboratori.
+                            * Seleziona più persone per creare lo stesso turno a tutti.
                         </Text>
                     )}
                 </View>
@@ -404,5 +455,9 @@ const styles = StyleSheet.create({
     timeButton: { backgroundColor: '#000', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems:'center' },
     timeText: { color: Colors.textPrimary, fontSize: 18, fontWeight: 'bold' },
     saveButton: { backgroundColor: Colors.primary, padding: 20, borderRadius: 16, alignItems: 'center', marginTop: 10, elevation: 5 },
-    saveButtonText: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 }
+    saveButtonText: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+    listContainer: { backgroundColor: '#000', borderRadius: 10, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+    collabItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    collabItemSelected: { backgroundColor: Colors.success + '20' },
+    collabName: { color: Colors.textSecondary, fontSize: 14 },
 });
