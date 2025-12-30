@@ -196,5 +196,5 @@ const styles = StyleSheet.create({
     cardDesc: { color: Colors.textSecondary, marginBottom: 20, lineHeight: 20, fontSize: 12 },
     pickerContainer: { borderWidth: 1, borderColor: Colors.divider, borderRadius: 10, marginBottom: 20, backgroundColor: '#0D1117' },
     btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12 },
-    btnText: { fontWeight: 'bold', fontSize: 14, color: '#000' }
+    btnText: { fontWeight: 'bold', fontSize: 14, color: '#000' },
 });

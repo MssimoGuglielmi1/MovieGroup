@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     moneyValue: { fontSize: 18, fontWeight: 'bold', color: Colors.primary },
     rateLabel: { fontSize: 10, fontStyle: 'italic', marginTop: 2 },
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 10, marginTop: 5 },
-    empty: { color: Colors.textSub, textAlign: 'center', marginTop: 50, fontStyle:'italic' }
+    empty: { color: Colors.textSub, textAlign: 'center', marginTop: 50, fontStyle:'italic' },
 });

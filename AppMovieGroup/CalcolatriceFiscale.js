@@ -1,6 +1,5 @@
 // CalcolatriceFiscale.js
 // Logica centralizzata per il calcolo dei costi (Doppia Forbice)
-
 export const calculateFiscalData = (shift) => {
     // Se mancano dati essenziali, ritorna zero
     if (!shift || !shift.date || !shift.startTime || !shift.endTime) {

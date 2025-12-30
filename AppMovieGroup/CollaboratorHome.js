@@ -511,32 +511,10 @@ const getStyles = (Colors) => StyleSheet.create({
   timerTextGreen: { color: Colors.primary, fontWeight: 'bold', fontSize: 12 },
   timerBigText: { color: Colors.textMain, fontSize: 22, fontWeight:'bold', marginTop: 4 },
   timerSubText: { color: Colors.textMain, fontSize: 12, marginTop: 4 },
-  warningOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.9)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 9999
-    },
-    warningBox: {
-        width: '85%',
-        backgroundColor: Colors.surface,
-        borderRadius: 20,
-        padding: 25,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: Colors.yellow
-    },
-    warningTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginTop: 15, letterSpacing: 1 },
-    warningText: { color: Colors.textSub, textAlign: 'center', marginTop: 10, lineHeight: 20, fontSize: 14 },
-    warningBtn: { 
-        backgroundColor: Colors.yellow, 
-        paddingVertical: 14, 
-        paddingHorizontal: 30, 
-        borderRadius: 12, 
-        marginTop: 20,
-        width: '100%',
-        alignItems: 'center'
-    },
-    warningBtnText: { color: '#000', fontWeight: 'bold', fontSize: 15 }
+  warningOverlay: {...StyleSheet.absoluteFillObject,backgroundColor: 'rgba(0,0,0,0.9)',justifyContent: 'center',alignItems: 'center',zIndex: 9999},
+  warningBox: {width: '85%',backgroundColor: Colors.surface,borderRadius: 20,padding: 25,alignItems: 'center',borderWidth: 1,borderColor: Colors.yellow},
+  warningTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginTop: 15, letterSpacing: 1 },
+  warningText: { color: Colors.textSub, textAlign: 'center', marginTop: 10, lineHeight: 20, fontSize: 14 },
+  warningBtn: { backgroundColor: Colors.yellow, paddingVertical: 14, paddingHorizontal: 30, borderRadius: 12, marginTop: 20,width: '100%',alignItems: 'center'},
+  warningBtnText: { color: '#000', fontWeight: 'bold', fontSize: 15 }
 });

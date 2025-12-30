@@ -479,31 +479,22 @@ const styles = (Colors) => StyleSheet.create({
   headerActions: { flexDirection: 'row' },
   iconButton: { marginLeft: 15, padding: 5 },
   scrollContent: { padding: 20, paddingBottom: 60 },
-
   sectionTitle: { color: Colors.textFaded, fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1, textTransform: 'uppercase' },
-
-  // GRID SYSTEM
   gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 },
   gridTile: { width: '48%', backgroundColor: Colors.surface, borderRadius: 16, padding: 15, marginBottom: 15, borderTopWidth: 4, elevation: 2 },
   gridLabel: { fontSize: 11, fontWeight: '700', color: Colors.textFaded, textTransform: 'uppercase' },
   gridValue: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary },
-
-  // WIDE WIDGETS
   wideWidget: { backgroundColor: Colors.surface, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, borderWidth: 1, borderColor: Colors.divider },
   iconCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   widgetTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
   widgetSubtitle: { fontSize: 11, color: Colors.textFaded },
-
   bankButton: { backgroundColor: '#F0F6FC', padding: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginBottom: 10, marginTop: 10 },
   mainFab: { backgroundColor: Colors.accentPurple, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 30, marginTop: 10, elevation: 4 },
   fabText: { color: '#FFF', fontWeight: 'bold', fontSize: 16, marginLeft: 8 },
-
-  // MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: Colors.surface, borderRadius: 20, padding: 25, borderWidth: 1, borderColor: Colors.divider },
   modalTitle: { fontSize: 20, fontWeight: '900', color: Colors.textPrimary, textAlign:'center' },
   modalSub: { color: Colors.textFaded, fontSize: 12, textAlign:'center', marginBottom: 20 },
   input: { backgroundColor: Colors.background, color: Colors.textPrimary, padding: 15, borderRadius: 10, borderWidth: 1, borderColor: Colors.divider, fontSize: 24, fontWeight:'bold', textAlign:'center' },
-
   saveBtn: { backgroundColor: Colors.accentGreen, padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 25 }
 });

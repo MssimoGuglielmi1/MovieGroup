@@ -261,53 +261,28 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     backBtn: { marginRight: 15 },
     headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-    
     createBox: { backgroundColor: '#1e293b', padding: 15, borderRadius: 12, marginBottom: 25, borderColor: '#8b5cf6', borderWidth: 1 },
     createTitle: { color: '#8b5cf6', fontWeight: 'bold', marginBottom: 10, textTransform:'uppercase', fontSize:12 },
     input: { backgroundColor: '#0f172a', color: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
     pubBtn: { backgroundColor: '#8b5cf6', padding: 12, borderRadius: 8, justifyContent:'center', alignItems:'center', width: 50 },
-
     card: { backgroundColor: '#1e293b', padding: 15, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#334155' },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
-    
     dateText: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
     timeText: { color: '#22d3ee', fontSize: 15, fontWeight: 'bold' },
     locationText: { color: '#fbbf24', fontSize: 15, fontWeight:'bold', marginTop:2 }, 
     noteText: { color: '#cbd5e1', marginTop: 8, fontSize:14, fontStyle:'italic' },
-
     voteContainer: { borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 12 },
     question: { color: '#94a3b8', marginBottom: 8, fontSize:12, textTransform:'uppercase', fontWeight:'bold' },
-    
-    // Stile per la casella Nota
     noteInput: { backgroundColor: '#0f172a', color: '#fff', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#475569', marginBottom: 10, fontSize: 13 },
-
     buttonsRow: { flexDirection: 'row', gap: 10 },
     voteBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
     btnOutline: { borderColor: '#475569', backgroundColor: 'transparent' },
     btnYesSelected: { backgroundColor: '#10b981', borderColor: '#10b981' }, 
     btnNoSelected: { backgroundColor: '#ef4444', borderColor: '#ef4444' }, 
     btnText: { color: '#94a3b8', fontWeight: 'bold', fontSize:13 },
-
     adminView: { marginTop: 15, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 },
     adminTitle: { color: '#8b5cf6', fontSize: 11, fontWeight: 'bold', marginBottom: 5 },
     namesList: { color: '#fff', fontSize: 13, lineHeight: 22 },
-
-    // --- NUOVI STILI AGGIUNTI (Quelli che mancavano!) ---
-    feedbackContainer: { 
-        marginTop: 15, 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        backgroundColor: 'rgba(76, 175, 80, 0.15)', // Sfondo verde leggerissimo
-        padding: 8,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(76, 175, 80, 0.5)'
-    },
-    feedbackText: { 
-        color: '#4CAF50', 
-        fontSize: 12, 
-        fontWeight: 'bold',
-        textTransform: 'uppercase'
-    }
+    feedbackContainer: { marginTop: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',backgroundColor: 'rgba(76, 175, 80, 0.15)',padding: 8,borderRadius: 8,borderWidth: 1,borderColor: 'rgba(76, 175, 80, 0.5)'},
+    feedbackText: { color: '#4CAF50', fontSize: 12, fontWeight: 'bold',textTransform: 'uppercase'},
 });

@@ -95,29 +95,10 @@ const styles = StyleSheet.create({
     indicator: { marginBottom: 30 },
     title: { fontSize: 24, fontWeight: 'bold', color: '#ffffff', marginBottom: 10, textAlign: 'center' },
     subtitle: { fontSize: 16, color: '#94a3b8', marginBottom: 30, textAlign: 'center' },
-    
-    infoBox: {
-        backgroundColor: 'rgba(6, 182, 212, 0.1)', 
-        padding: 20, 
-        borderRadius: 16, 
-        marginBottom: 30, 
-        borderWidth: 1, 
-        borderColor: '#06b6d4',
-        width: '100%',
-        alignItems: 'center'
-    },
+    infoBox: {backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: 20, borderRadius: 16, marginBottom: 30, borderWidth: 1, borderColor: '#06b6d4',width: '100%',alignItems: 'center'},
     infoText: { color: '#22d3ee', fontSize: 14, textAlign: 'center', fontWeight: 'bold' },
-
     footerText: { fontSize: 14, color: '#64748b', marginBottom: 20, textAlign: 'center' },
-    
-    logoutButton: {
-        marginTop: 20,
-        paddingVertical: 10,
-        paddingHorizontal: 30,
-        borderRadius: 12,
-        backgroundColor: '#ef4444'
-    },
+    logoutButton: {marginTop: 20,paddingVertical: 10,paddingHorizontal: 30,borderRadius: 12,backgroundColor: '#ef4444'},
     logoutText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
 });
-
 export default PendingApprovalScreen;

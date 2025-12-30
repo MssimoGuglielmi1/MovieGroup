@@ -137,7 +137,6 @@ const styles = StyleSheet.create({
     detailLabel: { color: Colors.textSub, fontSize: 12, fontWeight: 'bold' },
     detailValue: { color: Colors.textMain, fontSize: 12, fontWeight: 'bold' },
     emptyText: { color: Colors.textSub, marginTop: 10, fontStyle: 'italic' },
-    // STILI PER LA RICERCA
     searchContainer: {flexDirection: 'row',alignItems: 'center',
     backgroundColor: Colors.surface,margin: 15,paddingHorizontal: 15,
     borderRadius: 10,height: 45,borderWidth: 1,borderColor: Colors.border},

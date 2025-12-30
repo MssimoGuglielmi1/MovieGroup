@@ -19,7 +19,6 @@ const Colors = {
 };
 
 // --- CONTENUTI DIVERSI PER RUOLO --- 'map-pin'
-
 const STEPS_COLLABORATOR = [
     { 
         icon: 'settings', 
@@ -220,5 +219,5 @@ const styles = StyleSheet.create({
     stepTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 4, letterSpacing: 0.5 },
     stepDesc: { fontSize: 13, color: Colors.subText, lineHeight: 18 },
     closeBtn: { backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: 16, alignItems: 'center', marginTop: 10 },
-    closeText: { color: '#000', fontWeight: '900', fontSize: 15, letterSpacing: 1 }
+    closeText: { color: '#000', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 });
