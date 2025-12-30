@@ -501,10 +501,17 @@ return (
                             <View>
                                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Nome:</Text><Text style={styles.detailValue}>{selectedUser.firstName} {selectedUser.lastName}</Text></View>
                                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Ruolo:</Text><Text style={[styles.detailValue, {color: selectedUser.role === 'AMMINISTRATORE' ? Colors.cyan : Colors.primary}]}>{selectedUser.role}</Text></View>
-                                <TouchableOpacity onPress={() => makeCall(selectedUser.phoneNumber)} style={styles.sensitiveBox}>
-                                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}><Text style={styles.boxLabel}>CELLULARE</Text><Feather name="phone-call" size={14} color={Colors.accent}/></View>
-                                    <Text style={[styles.boxValue, {color: Colors.accent}]}>{selectedUser.phoneNumber || "Non inserito"}</Text>
-                                </TouchableOpacity>
+{/* CELLULARE (Solo Visualizzazione - La chiamata si fa dal tasto Verde fuori) */}
+<View style={styles.sensitiveBox}>
+    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+        <Text style={styles.boxLabel}>CELLULARE</Text>
+        <Feather name="phone" size={14} color={Colors.textSub}/> 
+    </View>
+    {/* Colore normale (Bianco) perché non è più un link cliccabile */}
+    <Text style={[styles.boxValue, {color: Colors.textMain}]}>
+        {selectedUser.phoneNumber || "Non inserito"}
+    </Text>
+</View>
                                 {/* MOSTRA DATI FISCALI A FOUNDER E ADMIN */}
                                 {(viewerRole === 'FOUNDER' || viewerRole === 'AMMINISTRATORE') && (
                                     <>
