@@ -72,72 +72,142 @@ const AuthScreen = () => {
   const handleWhatsAppSupport = () => Linking.openURL('https://wa.me/393501133230');
   const handleOpenWebsite = () => Linking.openURL('https://www.moviegroup.it').catch(err => console.error("Errore link", err));
 
+// ... dentro AuthScreen in App.js ...
+
+// 1. FUNZIONE HELPER "BILINGUE" (WEB + APP) 🌍📱
+const showAlert = (title, message) => {
+    if (Platform.OS === 'web') {
+        // Sul PC usiamo il popup del browser
+        window.alert(`${title}\n\n${message}`);
+    } else {
+        // Sul Telefono usiamo il popup nativo
+        Alert.alert(title, message);
+    }
+};
+
+// 1. VALIDATORE EMAIL "NAZISTA" (Solo Domini Famosi) 🛡️⛔
+const isValidEmail = (email) => {
+    // A. Regex Base
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) return false;
+
+    // B. LISTA BIANCA (Accetta SOLO questi, blocca tutto il resto)
+    const allowedDomains = [
+        'gmail.com', 
+        'libero.it', 
+        'hotmail.com', 'hotmail.it', 
+        'yahoo.com', 'yahoo.it',
+        'icloud.com',
+        'outlook.com', 'outlook.it',
+        'live.com', 'live.it',
+        'virgilio.it',
+        'alice.it'
+    ];
+
+    const domain = email.split('@')[1].toLowerCase();
+
+    // Se il dominio NON è nella lista bianca, BLOCCA.
+    if (!allowedDomains.includes(domain)) {
+        return false; 
+    }
+
+    return true;
+};
+
 const handleRegister = async () => {
-    // Controlli preliminari
-    if (!email || !password || !confirmPassword) { Alert.alert("Attenzione", "Compila tutti i campi."); return; }
-    if (password !== confirmPassword) { Alert.alert("Errore", "Le password non coincidono."); return; }
+    // A. CONTROLLO CAMPI VUOTI
+    if (!email || !password || !confirmPassword || !firstName || !lastName) { 
+        showAlert("Attenzione", "Compila tutti i campi obbligatori (Nome, Cognome, Email, Password)."); 
+        return; 
+    }
+
+    // B. CONTROLLO FORMATO EMAIL
+if (!isValidEmail(email)) {
+        showAlert("Email Non Supportata", "Per sicurezza accettiamo solo email classiche (Gmail, Libero, Hotmail, Yahoo, ecc).\n\nSe hai una mail aziendale particolare, contattaci.");
+        return;
+    }
+
+    // C. CONTROLLO PASSWORD DIVERSE
+    if (password !== confirmPassword) { 
+        showAlert("Errore Password", "Le due password inserite NON coincidono.\nRiprova."); 
+        return; 
+    }
+
+    // D. CONTROLLO LUNGHEZZA
+    if (password.length < 6) {
+        showAlert("Password Debole", "La password deve avere almeno 6 caratteri.");
+        return;
+    }
 
     setLoading(true);
     try {
-      // 1. CREAZIONE UTENTE (AUTH)
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      const role = registrationRole;
-      const isApproved = false; 
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        const role = registrationRole;
+        const isApproved = false; 
 
-      // 2. 🔥 SALVATAGGIO NEL DATABASE (PRIORITÀ ASSOLUTA)
-      // Lo facciamo SUBITO, prima di qualsiasi altra operazione rischiosa
-      await setDoc(doc(db, "users", user.uid), {
-        lastName: lastName,
-        firstName: firstName,
-        email: user.email,
-        role: role,
-        isApproved: isApproved,
-        createdAt: new Date(),
-        adminRequest: role === 'AMMINISTRATORE',
-        emailVerified: false 
-      });
+        await setDoc(doc(db, "users", user.uid), {
+            lastName: lastName.trim(),
+            firstName: firstName.trim(),
+            email: user.email,
+            role: role,
+            isApproved: isApproved,
+            createdAt: new Date(),
+            adminRequest: role === 'AMMINISTRATORE',
+            emailVerified: false 
+        });
 
-      // 3. 📧 INVIO EMAIL DI VERIFICA (Dopo aver salvato)
-      // Mettiamo un piccolo "try-catch" interno così se la mail fallisce, non blocca la registrazione
-      try {
-          await sendEmailVerification(user); 
-      } catch (emailError) {
-          console.log("Attenzione: Email non inviata subito, ma utente salvato.", emailError);
-      }
+        try { await sendEmailVerification(user); } catch (e) {}
 
-      setLoading(false);
-      
-      // 4. MESSAGGIO DI SUCCESSO
-      Alert.alert(
-          "ISCRIZIONE RICEVUTA 📧", 
-          "1. Ti abbiamo inviato una mail di verifica: controlla la posta e clicca il link!\n\n" +
-          "2. Il tuo account è comunque in stato di attesa di approvazione da parte dello Staff.\n\n" +
-          "Riceverai una notifica appena sarai accettato."
-      );
-      
-      // Pulizia campi
-      setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setConfirmPassword('');
-      
+        setLoading(false);
+        showAlert("ISCRIZIONE RIUSCITA 📧", "Controlla la tua email per verificare l'account e attendi l'approvazione.");
+        
+        setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setConfirmPassword('');
+
     } catch (error) {
-      setLoading(false);
-      // Gestione errori (es. email già usata)
-      Alert.alert("Errore Registrazione", error.message);
+        setLoading(false);
+        
+        let msg = "Errore durante la registrazione.";
+        if (error.code === 'auth/email-already-in-use') {
+            msg = "Questa email è già registrata!\nFai il Login o recupera la password.";
+        } else if (error.code === 'auth/invalid-email') {
+            msg = "L'email inserita non è valida.";
+        }
+        
+        showAlert("Errore Registrazione", msg);
     }
-  };
+};
 
-  const handleLogin = async () => {
-    if (!email || !password) { Alert.alert("Attenzione", "Compila tutti i campi."); return; }
+const handleLogin = async () => {
+    // A. Controllo Campi
+    if (!email || !password) { 
+        showAlert("Attenzione", "Inserisci Email e Password."); 
+        return; 
+    }
+
+    // B. Controllo preventivo Email
+    if (!isValidEmail(email)) {
+        showAlert("Email Errata", "Hai scritto un'email non valida (controlla @ o spazi).");
+        return;
+    }
+
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setLoading(false);
+        await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      setLoading(false);
-      Alert.alert("Errore Login", "Credenziali non valide o errore di connessione.");
+        setLoading(false);
+        
+        let msg = "Errore di connessione.";
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            msg = "Email o Password sbagliate.\nControlla e riprova.";
+       } else if (error.code === 'auth/too-many-requests') {
+            msg = "⚠️ TROPPI TENTATIVI! Google ha bloccato l'accesso per sicurezza.\n\nSOLUZIONE RAPIDA: Clicca su 'Password dimenticata?' qui sotto per reimpostarla e sbloccarti subito, oppure attendi 10/15 minuti.";
+       } else if (error.code === 'auth/user-disabled') {
+            msg = "Il tuo account è stato disabilitato.";
+       }
+        showAlert("Accesso Negato", msg);
     }
-  };
+};
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
