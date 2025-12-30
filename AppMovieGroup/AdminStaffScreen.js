@@ -232,7 +232,22 @@ export default function AdminStaffScreen({ navigation, route }) {
     };
 
         const openDetails = (user) => { setSelectedUser(user); setModalVisible(true); };
-        const copyToClipboard = (label, text) => { if(text) Alert.alert("Copiato", `${label}: ${text}`); };
+        const copyToClipboard = (label, text) => { 
+        if (!text) return;
+        
+        // SU COMPUTER (WEB): Copia davvero negli appunti
+        if (Platform.OS === 'web') {
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`${label} Copiato! ✅`);
+            }).catch(err => {
+                console.error("Errore copia:", err);
+            });
+        } 
+        // SU TELEFONO: Mostra a video (o usa Clipboard se installato)
+        else {
+            Alert.alert("Copiato", `${label}: ${text}`); 
+        }
+    };
         const makeCall = (phoneNumber) => {
         if (!phoneNumber) return Alert.alert("No Numero", "L'utente non ha inserito il cellulare.");
         Linking.openURL(`tel:${phoneNumber.replace(/\s/g, '')}`);
@@ -502,16 +517,16 @@ return (
                                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Nome:</Text><Text style={styles.detailValue}>{selectedUser.firstName} {selectedUser.lastName}</Text></View>
                                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Ruolo:</Text><Text style={[styles.detailValue, {color: selectedUser.role === 'AMMINISTRATORE' ? Colors.cyan : Colors.primary}]}>{selectedUser.role}</Text></View>
 {/* CELLULARE (Solo Visualizzazione - La chiamata si fa dal tasto Verde fuori) */}
-<View style={styles.sensitiveBox}>
-    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
-        <Text style={styles.boxLabel}>CELLULARE</Text>
-        <Feather name="phone" size={14} color={Colors.textSub}/> 
-    </View>
-    {/* Colore normale (Bianco) perché non è più un link cliccabile */}
-    <Text style={[styles.boxValue, {color: Colors.textMain}]}>
-        {selectedUser.phoneNumber || "Non inserito"}
-    </Text>
-</View>
+{/* CELLULARE: Clicca per COPIARE */}
+                                <TouchableOpacity onPress={() => copyToClipboard("Cellulare", selectedUser.phoneNumber)} style={styles.sensitiveBox}>
+                                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+                                        <Text style={styles.boxLabel}>CELLULARE (Copia)</Text>
+                                        <Feather name="copy" size={14} color={Colors.textSub}/>
+                                    </View>
+                                    <Text style={[styles.boxValue, {color: Colors.textMain}]}>
+                                        {selectedUser.phoneNumber || "Non inserito"}
+                                    </Text>
+                                </TouchableOpacity>
                                 {/* MOSTRA DATI FISCALI A FOUNDER E ADMIN */}
                                 {(viewerRole === 'FOUNDER' || viewerRole === 'AMMINISTRATORE') && (
                                     <>
