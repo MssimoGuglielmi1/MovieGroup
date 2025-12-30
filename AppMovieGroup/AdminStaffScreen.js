@@ -337,7 +337,10 @@ export default function AdminStaffScreen({ navigation, route }) {
                             )}
                             
                             {/* Icona Occhio Barrato */}
-                            {isRestricted && <Feather name="eye-off" size={14} color={Colors.yellow} style={{marginLeft: 8}} />}
+                            {/* Icona Occhio Barrato - MODIFICA ENZO: VISIBILE SOLO AL FOUNDER */}
+                            {isRestricted && viewerRole === 'FOUNDER' && (
+                                <Feather name="eye-off" size={14} color={Colors.yellow} style={{marginLeft: 8}} />
+                            )}
                         </View>
 
                         {/* --- RIGA SOTTO (CONDIZIONALE) --- */}
@@ -379,8 +382,8 @@ export default function AdminStaffScreen({ navigation, route }) {
                         
                         {/* RIGA 1: GESTIONE SUPERIORE */}
                         <View style={styles.rowActions}>
-                            {/* 1. Dettagli (Blu) - RIMANE SOLO FOUNDER */}
-                            {viewerRole === 'FOUNDER' && (
+                            {/* 1. Dettagli (Blu) - ORA ANCHE PER ADMIN (Per Buste Paga) */}
+                            {(viewerRole === 'FOUNDER' || viewerRole === 'AMMINISTRATORE') && (
                                 <TouchableOpacity onPress={() => openDetails(item)} style={[styles.iconBtn, {backgroundColor: Colors.accent+'20'}]}>
                                     <Feather name="file-text" size={16} color={Colors.accent} />
                                 </TouchableOpacity>
@@ -393,7 +396,7 @@ export default function AdminStaffScreen({ navigation, route }) {
                                 </TouchableOpacity>
                             )}
 
-{/* 3. CONGELA (Arancione) - SOLO SE POSSO GESTIRE */}
+                            {/* 3. CONGELA (Arancione) - SOLO SE POSSO GESTIRE */}
                             {item.id !== currentUserId && canManage && (
                                 <TouchableOpacity 
                                     onPress={() => toggleSuspension(item)} 
@@ -502,9 +505,10 @@ return (
                                     <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}><Text style={styles.boxLabel}>CELLULARE</Text><Feather name="phone-call" size={14} color={Colors.accent}/></View>
                                     <Text style={[styles.boxValue, {color: Colors.accent}]}>{selectedUser.phoneNumber || "Non inserito"}</Text>
                                 </TouchableOpacity>
-                                {isFounder && (
+                                {/* MOSTRA DATI FISCALI A FOUNDER E ADMIN */}
+                                {(viewerRole === 'FOUNDER' || viewerRole === 'AMMINISTRATORE') && (
                                     <>
-                                        <Text style={[styles.sectionHeader, {marginTop: 15, color: Colors.cyan}]}>DATI FISCALI (SOLO FOUNDER)</Text>
+                                        <Text style={[styles.sectionHeader, {marginTop: 15, color: Colors.cyan}]}>DATI FISCALI</Text>
                                         <TouchableOpacity onPress={() => copyToClipboard("CF", selectedUser.codiceFiscale)} style={[styles.sensitiveBox, {borderColor: Colors.cyan}]}><Text style={styles.boxLabel}>CODICE FISCALE</Text><Text style={styles.boxValue}>{selectedUser.codiceFiscale || "-"}</Text></TouchableOpacity>
                                         <TouchableOpacity onPress={() => copyToClipboard("IBAN", selectedUser.iban)} style={[styles.sensitiveBox, {borderColor: Colors.cyan}]}><Text style={styles.boxLabel}>IBAN</Text><Text style={[styles.boxValue, {color: Colors.cyan}]}>{selectedUser.iban || "-"}</Text></TouchableOpacity>
                                     </>
