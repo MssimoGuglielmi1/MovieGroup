@@ -167,7 +167,7 @@ const handleRegister = async () => {
 
           <View style={styles.form}>
             <Text style={styles.label}>Email</Text>
-            <TextInput style={styles.input} placeholder="GuglielmiMassimo@qui.com" placeholderTextColor="#64748b" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address"/>
+            <TextInput style={styles.input} placeholder="francescopellecchia@qui.com" placeholderTextColor="#64748b" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address"/>
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
@@ -223,9 +223,9 @@ const handleRegister = async () => {
             {!isLogin && (
               <>
                 <Text style={styles.label}>Nome</Text>
-                <TextInput style={styles.input} placeholder="Es.Francesco" placeholderTextColor="#64748b" value={firstName} onChangeText={setFirstName}/>
+                <TextInput style={styles.input} placeholder="Es.TuoNome" placeholderTextColor="#64748b" value={firstName} onChangeText={setFirstName}/>
                 <Text style={styles.label}>Cognome</Text>
-                <TextInput style={styles.input} placeholder="Es.Pellecchia" placeholderTextColor="#64748b" value={lastName} onChangeText={setLastName}/>
+                <TextInput style={styles.input} placeholder="Es.TuoCognome" placeholderTextColor="#64748b" value={lastName} onChangeText={setLastName}/>
 
                 <Text style={styles.label}>Conferma Password</Text>
                 <View style={styles.passwordContainer}>
