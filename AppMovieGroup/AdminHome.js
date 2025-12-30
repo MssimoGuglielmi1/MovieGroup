@@ -462,54 +462,32 @@ export default function AdminHome({ navigation }) {
 const getStyles = (Colors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  
   headerLeft: { flex: 1, marginRight: 10, zIndex: 1 },
   headerIconsContainer: { flexDirection: 'row', alignItems: 'center', gap: 20, zIndex: 999, elevation: 10, position: 'relative' },
   iconButton: { padding: 5, cursor: 'pointer' },
-  
   headerTitle: { fontSize: 22, fontWeight: '900', color: Colors.textMain, letterSpacing: 1 },
   headerSubtitle: { fontSize: 14, color: Colors.textSub, textDecorationLine:'underline' },
   scrollContent: { padding: 20, paddingBottom: 100 },
   tilesGrid: { flexDirection: 'row', gap: 10, marginBottom: 30 },
-  
   tile: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 10, borderLeftWidth: 4, borderWidth: 1, borderColor: Colors.border, minHeight: 100, justifyContent:'center', cursor: 'pointer' },
   tileHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   tileLabel: { fontSize: 9, fontWeight: 'bold', color: Colors.textSub, textTransform:'uppercase' },
   tileValue: { fontSize: 24, fontWeight: 'bold', color: Colors.textMain },
-  
   section: { marginBottom: 30 },
   sectionTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textSub, textTransform: 'uppercase', marginBottom: 10 },
   cardItem: { backgroundColor: Colors.surface, borderRadius: 12, padding: 15, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: Colors.border },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textMain },
   cardSubtitle: { fontSize: 12, color: Colors.textSub, marginTop: 2 },
-  
   actionsRow: { flexDirection: 'row' },
   actionBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-  
   mainFab: { backgroundColor: Colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 30, marginTop: 10, shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5, cursor: 'pointer' },
   fabText: { color: '#000', fontWeight: '900', fontSize: 16, marginLeft: 8, letterSpacing: 1 },
-  // AGGIUNGI QUESTI SOTTO A fabText o dove vuoi:
-  timerYellow: { 
-      backgroundColor: 'rgba(255, 215, 0, 0.2)', // Giallo trasparente
-      padding: 10, 
-      borderRadius: 8, 
-      marginTop: 10, 
-      alignItems: 'center', 
-      borderColor: Colors.warning, 
-      borderWidth: 1 
-  },
-  timerTextYellow: { 
-      color: Colors.warning, 
-      fontWeight: 'bold', 
-      fontSize: 10, 
-      textTransform: 'uppercase' 
-  },
-
-  // --- STILI OPERATIVI (Nuovi) ---
+  timerYellow: { backgroundColor: 'rgba(255, 215, 0, 0.2)',padding: 10, borderRadius: 8, marginTop: 10, alignItems: 'center', borderColor: Colors.warning, 
+  borderWidth: 1 },
+  timerTextYellow: { color: Colors.warning, fontWeight: 'bold', fontSize: 10, textTransform: 'uppercase' },
   timerGreen: { backgroundColor: 'rgba(76, 175, 80, 0.2)', padding: 10, borderRadius: 8, marginTop: 10, alignItems: 'center', borderColor: '#4CAF50', borderWidth: 1 },
   timerTextGreen: { color: '#4CAF50', fontWeight: 'bold', fontSize: 10, textTransform: 'uppercase' },
   timerBigText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', marginTop: 2 },
-  
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   opBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   opBtnText: { color: '#000', fontWeight: 'bold', fontSize: 12 },
