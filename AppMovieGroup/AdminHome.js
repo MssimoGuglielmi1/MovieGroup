@@ -25,6 +25,25 @@ const ColorSchemes = {
 };
 
 export default function AdminHome({ navigation }) {
+  // --- STATO AVVISO PROFILO ---
+  const [showProfileWarning, setShowProfileWarning] = useState(false);
+
+  useEffect(() => {
+    const checkAdminData = async () => {
+        const user = auth.currentUser;
+        if (user) {
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                // Se manca IBAN, CF o Telefono -> SCATTA L'ALLARME
+                if (!data.phoneNumber || !data.codiceFiscale || !data.iban) {
+                    setShowProfileWarning(true);
+                }
+            }
+        }
+    };
+    checkAdminData();
+  }, []);
   // --- STATO TEMA ---
   const [theme, setTheme] = useState('dark');
   const CurrentColors = ColorSchemes[theme];
@@ -455,6 +474,78 @@ export default function AdminHome({ navigation }) {
           onClose={() => setShowGuide(false)} 
           userRole="AMMINISTRATORE" 
       />
+      {/* --- MODAL AVVISO PROFILO INCOMPLETO (ADMIN) --- */}
+{/* --- MODAL AVVISO PROFILO INCOMPLETO (ADMIN) --- */}
+      {showProfileWarning && (
+          <View style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: 'rgba(0,0,0,0.9)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+          }}>
+              <View style={{
+                  width: '85%',
+                  backgroundColor: Colors.surface, // Sfondo scuro (#1C1C1E)
+                  borderRadius: 20,
+                  padding: 25,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: Colors.warning
+              }}>
+                  <Feather name="user-plus" size={40} color={Colors.warning} />
+                  
+                  <Text style={{
+                      color: '#FFFFFF', // <--- ORA È BIANCO PROTAGONISTA
+                      fontSize: 18, 
+                      fontWeight: '900', 
+                      marginTop: 15, 
+                      letterSpacing: 1
+                  }}>
+                      PROFILO INCOMPLETO ⚠️
+                  </Text>
+                  
+                  <Text style={{
+                      color: '#FFFFFF', // <--- ORA È BIANCO LEGGIBILE
+                      textAlign: 'center', 
+                      marginTop: 10, 
+                      lineHeight: 20, 
+                      fontSize: 14
+                  }}>
+                      Ciao, mancano dei dati fondamentali (IBAN, CODICE FISCALE E NUMERO DI TELEFONO), compila tramite la sezione in alto a sinistra "PROFILO E DATI".
+                  </Text>
+                  
+                  <TouchableOpacity 
+                      style={{
+                          backgroundColor: Colors.warning, 
+                          paddingVertical: 14, 
+                          paddingHorizontal: 30, 
+                          borderRadius: 12, 
+                          marginTop: 20,
+                          width: '100%',
+                          alignItems: 'center'
+                      }} 
+                      onPress={() => {
+                          setShowProfileWarning(false);
+                          navigation.navigate('CamerinoStaff'); 
+                      }}
+                  >
+                      <Text style={{color: '#000000', fontWeight: 'bold', fontSize: 15}}>COMPLETA ORA 🖋️</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setShowProfileWarning(false)}>
+                      <Text style={{
+                          color: '#FFFFFF', // <--- ORA È BIANCO LEGGIBILE
+                          marginTop: 15, 
+                          fontSize: 12,
+                          textDecorationLine: 'underline' // Aggiunto per stile link
+                      }}>
+                          Lo farò più tardi
+                      </Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      )}
     </SafeAreaView>
   );
 }
