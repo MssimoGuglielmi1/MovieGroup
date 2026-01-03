@@ -56,17 +56,48 @@ export default function ModificaTurno({ navigation, route }) {
 
     const formatDate = (d) => d.toISOString().split('T')[0];
 
-    const handleSave = async () => {
+    // --- FUNZIONE NOTIFICA CAMBIAMENTI ---
+    const notifyCollaborator = async (type) => {
+        try {
+            // 1. Recuperiamo i dati del collaboratore per avere il Token
+            const userSnap = await getDoc(doc(db, "users", shift.collaboratorId));
+            
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                if (userData.expoPushToken) {
+                    let title, body;
+
+                    if (type === 'DELETE') {
+                        title = "🗑️ TURNO ANNULLATO";
+                        body = `Il turno a ${shift.location} del ${shift.date} è stato CANCELLATO. Non presentarti.`;
+                    } else {
+                        title = "⚠️ MODIFICA TURNO";
+                        body = `Attenzione! Ci sono variazioni per il turno a ${location}. Nuovi orari: ${formatTime(startTime)} - ${formatTime(endTime)}.`;
+                    }
+
+                    await sendPushNotification(userData.expoPushToken, title, body);
+                }
+            }
+        } catch (error) {
+            console.log("Errore notifica modifica:", error);
+        }
+    };
+
+const handleSave = async () => {
         setLoading(true);
         try {
             const shiftRef = doc(db, "shifts", shift.id);
             await updateDoc(shiftRef, {
                 location,
                 date: formatDate(date),
-                startTime: formatTime(startTime), // Usa la funzione sicura
-                endTime: formatTime(endTime),     // Usa la funzione sicura
+                startTime: formatTime(startTime),
+                endTime: formatTime(endTime),    
             });
-            Alert.alert("Salvato", "Turno aggiornato.");
+
+            // 🔔 AVVISA DELLA MODIFICA
+            await notifyCollaborator('UPDATE'); 
+
+            Alert.alert("Salvato", "Turno aggiornato e notifica inviata.");
             navigation.goBack();
         } catch (e) { Alert.alert("Errore", e.message); }
         setLoading(false);
@@ -77,6 +108,7 @@ export default function ModificaTurno({ navigation, route }) {
         // Funzione interna che fa il lavoro sporco
         const performDelete = async () => {
             try {
+                await notifyCollaborator('DELETE');
                 await deleteDoc(doc(db, "shifts", shift.id));
                 
                 // Feedback per il Web

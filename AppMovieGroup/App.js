@@ -38,6 +38,7 @@ import CollaboratorHistoryScreen from './CollaboratorHistoryScreen';
 import ModificaTurno from './ModificaTurno';
 import CamerinoStaff from './CamerinoStaff';
 import AvvioApp from './AvvioApp';
+import { sendPushNotification } from './Notifiche';
 
 // --- IMPORT FIREBASE ---
 import {
@@ -49,7 +50,7 @@ import {
     sendPasswordResetEmail
 } from 'firebase/auth';
 
-import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 
 // --- COMPONENTE AUTH (LOGIN/REGISTRAZIONE) ---
@@ -156,6 +157,34 @@ if (!isValidEmail(email)) {
             adminRequest: role === 'AMMINISTRATORE',
             emailVerified: false 
         });
+
+        // ---------------------------------------------------------
+        // 🔔 CAMPANELLO D'ALLARME (FOUNDER + ADMIN) 🔔
+        // ---------------------------------------------------------
+        try {
+            // Cerchiamo chi comanda (Sia Founder che Admin)
+            const q = query(
+                collection(db, "users"), 
+                where("role", "in", ["FOUNDER", "AMMINISTRATORE"]) 
+            );
+            
+            const snapshot = await getDocs(q);
+            
+            snapshot.forEach(async (doc) => {
+                const bossData = doc.data();
+                // Mandiamo la notifica solo se hanno il token attivo
+                if (bossData.expoPushToken) {
+                    await sendPushNotification(
+                        bossData.expoPushToken, 
+                        "🆕 Nuova Iscrizione!", 
+                        `${firstName} ${lastName} si è registrato. Entra per approvare o rifiutare.`
+                    );
+                }
+            });
+        } catch (err) {
+            console.log("Errore notifica staff:", err);
+        }
+        // ---------------------------------------------------------
 
         try { await sendEmailVerification(user); } catch (e) {}
 

@@ -6,7 +6,9 @@ import { signOut } from 'firebase/auth';
 import { auth, db } from './firebaseConfig';
 import { collection, query, where, doc, updateDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import * as Location from 'expo-location';
-import WelcomeModal from './WelcomeModal'; // <--- AGGIUNGI QUESTO
+
+import WelcomeModal from './WelcomeModal';
+import { sendPushNotification } from './Notifiche';
 
 // --- DESIGN SYSTEM ---
 const Colors = {
@@ -133,8 +135,54 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
       } catch (e) { return 'ERROR'; }
   };
 
-  const handleAccept = async (invite) => { try { await updateDoc(doc(db, "shifts", invite.id), { status: "accettato" }); } catch (e) { Alert.alert("Errore", "Impossibile accettare."); } };
-  const handleDecline = async (id) => { try { await updateDoc(doc(db, "shifts", id), { status: "rifiutato" }); } catch (e) { Alert.alert("Errore", "Impossibile rifiutare."); } };
+  // --- FUNZIONE PER AVVISARE IL FOUNDER/CREATORE ---
+  const notifyFounder = async (shift, action) => {
+      try {
+          // 1. Troviamo chi ha creato il turno
+          if (!shift.createdBy) return;
+          const creatorSnap = await getDoc(doc(db, "users", shift.createdBy));
+          
+          if (creatorSnap.exists()) {
+              const creatorData = creatorSnap.data();
+              // 2. Se ha il token, mandiamo la notifica
+              if (creatorData.expoPushToken) {
+                  const title = action === 'ACCEPTED' ? "✅ Turno Accettato" : "❌ Turno Rifiutato";
+                  const body = `${user?.firstName} ${user?.lastName} ha ${action === 'ACCEPTED' ? 'accettato' : 'RIFIUTATO'} il turno a ${shift.location} del ${shift.date}.`;
+                  
+                  await sendPushNotification(creatorData.expoPushToken, title, body);
+              }
+          }
+      } catch (error) {
+          console.log("Errore notifica founder:", error);
+      }
+  };
+
+  const handleAccept = async (invite) => { 
+      try { 
+          await updateDoc(doc(db, "shifts", invite.id), { status: "accettato" });
+          // 🔔 Avvisa il Founder
+          await notifyFounder(invite, 'ACCEPTED'); 
+      } catch (e) { 
+          Alert.alert("Errore", "Impossibile accettare."); 
+      } 
+  };
+
+  const handleDecline = async (id) => { 
+      try { 
+          // Per rifiutare ci serve l'oggetto turno completo per sapere a chi notificare.
+          // (Lo recuperiamo dalla lista 'invites')
+          const shiftToDecline = invites.find(s => s.id === id);
+          
+          await updateDoc(doc(db, "shifts", id), { status: "rifiutato" });
+          
+          if (shiftToDecline) {
+              // 🔔 Avvisa il Founder (SUBITO!)
+              await notifyFounder(shiftToDecline, 'DECLINED'); 
+          }
+      } catch (e) { 
+          Alert.alert("Errore", "Impossibile rifiutare."); 
+      } 
+  };
 
   const handleEarlyAttempt = (startTime) => {
       Alert.alert(

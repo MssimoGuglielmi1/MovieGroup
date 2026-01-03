@@ -198,9 +198,10 @@ return () => {
                 // Salvataggio effettivo
                 await addDoc(collection(db, "shifts"), shiftData);
 
-                // Notifica Push
+// Notifica Push POTENZIATA 🚀
                 if (collabData && collabData.expoPushToken) {
-                    await sendPushNotification(collabData.expoPushToken, "📅 Nuovo Turno", `Turno a ${location} il ${formatDate(date)}.`);
+                    const messageBody = `Sei stato convocato per un turno a ${location} il ${formatDate(date)}. Entra e CONFERMA la presenza!`;
+                    await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
                 }
             });
 
