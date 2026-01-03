@@ -5,9 +5,11 @@ import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy, getDoc } from 'firebase/firestore';
 
+import { sendPushNotification } from './Notifiche';
+
 // --- COMPONENTE CARD SEPARATO (Per gestire lo stato della nota singolarmente) ---
 // --- COMPONENTE CARD SEPARATO (AGGIORNATO CON FEEDBACK) ---
-const ShiftCard = ({ item, userRole, currentUser, onDelete, onVote }) => {
+const ShiftCard = ({ item, userRole, currentUser, onDelete, onVote, onEdit }) => {
     const [myNote, setMyNote] = useState('');
     
     // Recuperiamo il voto esistente
@@ -41,12 +43,23 @@ const ShiftCard = ({ item, userRole, currentUser, onDelete, onVote }) => {
                 </View>
 
             {/* ORA ANCHE L'ADMIN PUÒ CANCELLARE */}
-                {(userRole === 'FOUNDER' || userRole === 'AMMINISTRATORE') && (
-                    <TouchableOpacity onPress={() => onDelete(item.id)} style={{marginLeft:10}}>
-                        <Feather name="trash-2" size={22} color="#ef4444" />
+{/* ORA ANCHE L'ADMIN PUÒ CANCELLARE E MODIFICARE */}
+            {(userRole === 'FOUNDER' || userRole === 'AMMINISTRATORE') && (
+                <View style={{flexDirection:'row', alignItems:'center'}}>
+                    
+                    {/* 1. NUOVO TASTO MATITA (Giallo) */}
+                    <TouchableOpacity onPress={() => onEdit(item)} style={{marginLeft:10, padding:5}}>
+                        <Feather name="edit-3" size={20} color="#fbbf24" />
                     </TouchableOpacity>
-                )}
-            </View>
+
+                    {/* 2. TASTO ELIMINA (Cestino - Rosso) */}
+                    <TouchableOpacity onPress={() => onDelete(item.id)} style={{marginLeft:5, padding:5}}>
+                        <Feather name="trash-2" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+
+                </View>
+            )}
+        </View>
 
             {/* SEZIONE VOTO */}
             {userRole !== 'FOUNDER' && (
@@ -123,9 +136,11 @@ export default function MostroRivoluzionario({ navigation }) {
     const [newLocation, setNewLocation] = useState('');
     const [newNote, setNewNote] = useState('');
     
+    const [editingId, setEditingId] = useState(null); // Se è null = Nuovo, se ha un ID = Modifica
     const [loading, setLoading] = useState(false);
     const currentUser = auth.currentUser;
     const [userRole, setUserRole] = useState(null);
+    
 
     useEffect(() => {
         const getUserRole = async () => {
@@ -146,8 +161,26 @@ export default function MostroRivoluzionario({ navigation }) {
         return unsubscribe;
     }, []);
 
-    // FOUNDER: Crea Previsione
-    const handleCreate = async () => {
+    // --- FUNZIONE PER NOTIFICARE TUTTI ---
+    const notifyAllUsers = async (title, body) => {
+        try {
+            const usersRef = collection(db, "users");
+            const snapshot = await getDocs(usersRef);
+            
+            snapshot.docs.forEach(doc => {
+                const userData = doc.data();
+                // Manda solo se ha il token e NON sei tu (opzionale, se vuoi riceverla anche tu togli il controllo uid)
+                if (userData.expoPushToken && doc.id !== auth.currentUser.uid) {
+                    sendPushNotification(userData.expoPushToken, title, body);
+                }
+            });
+        } catch (error) {
+            console.log("Errore notifica massiva:", error);
+        }
+    };
+
+// 1. FUNZIONE UNICA: CREA O AGGIORNA
+    const handleSavePost = async () => {
         if (!newDate.trim() || !newLocation.trim() || !newStartTime.trim()) { 
             Alert.alert("Mancano dati", "Inserisci almeno Data, Orari e Luogo!"); 
             return; 
@@ -155,23 +188,62 @@ export default function MostroRivoluzionario({ navigation }) {
 
         setLoading(true);
         try {
-            await addDoc(collection(db, "provisional_shifts"), {
+            const postData = {
                 dateText: newDate,
                 startTimeText: newStartTime,
                 endTimeText: newEndTime,
                 locationText: newLocation,
                 note: newNote,
-                createdAt: new Date(),
-                availabilities: {} 
-            });
-            setNewDate(''); setNewStartTime(''); setNewEndTime(''); setNewLocation(''); setNewNote('');
-            if(Platform.OS === 'web') alert("Pubblicato!"); else Alert.alert("Pubblicato!", "La richiesta è online.");
+                // NOTA: Se modifico, NON tocco 'availabilities' ne 'createdAt', aggiorno solo i testi!
+            };
+
+            if (editingId) {
+                // --- BIVIO A: MODIFICA ---
+                await updateDoc(doc(db, "provisional_shifts", editingId), postData);
+                const msg = "Post aggiornato!";
+                Platform.OS === 'web' ? alert(msg) : Alert.alert("Fatto!", msg);
+            } else {
+                // --- BIVIO B: CREAZIONE (Quello che facevi prima) ---
+                await addDoc(collection(db, "provisional_shifts"), {
+                    ...postData,
+                    createdAt: new Date(),
+                    availabilities: {} 
+                });
+                await notifyAllUsers("Nuovo Avviso in Bacheca 📢", `Nuova previsione per il ${newDate} a ${newLocation}. Controlla ora!`);
+                const msg = "Pubblicato!";
+                Platform.OS === 'web' ? alert(msg) : Alert.alert("Pubblicato!", "La richiesta è online.");
+            }
+
+            resetForm(); // Pulisce tutto alla fine
+
         } catch (e) {
             Alert.alert("Errore", e.message);
         }
         setLoading(false);
     };
 
+    // 2. AVVIA MODIFICA (Riempie i campi quando clicchi la matita)
+    const startEdit = (item) => {
+        setNewDate(item.dateText);
+        setNewStartTime(item.startTimeText);
+        setNewEndTime(item.endTimeText);
+        setNewLocation(item.locationText);
+        setNewNote(item.note);
+        setEditingId(item.id); // <--- Qui accendiamo la modalità modifica
+        Alert.alert("Modifica avviata", "Modifica i dati nel box in alto, poi premi il tasto Giallo.");
+    };
+
+    // 3. PULISCI TUTTO (Il tasto X o dopo il salvataggio)
+    const resetForm = () => {
+        setNewDate(''); 
+        setNewStartTime(''); 
+        setNewEndTime(''); 
+        setNewLocation(''); 
+        setNewNote('');
+        setEditingId(null); // Spegniamo la modalità modifica
+    };
+
+    // 3. PULISCI TUTTO (Il tasto X o dopo il salvataggio
     // VOTAZIONE CON NOTA
     const handleVote = async (shiftId, status, noteText) => {
         const shiftRef = doc(db, "provisional_shifts", shiftId);
@@ -219,20 +291,44 @@ export default function MostroRivoluzionario({ navigation }) {
                 <Text style={styles.headerTitle}>Bacheca Previsionale</Text>
             </View>
 
-            {/* BOX CREAZIONE (Solo Founder) */}
+{/* BOX CREAZIONE / MODIFICA (Solo Founder/Admin) */}
             {(userRole === 'FOUNDER' || userRole === 'AMMINISTRATORE') && (
-                <View style={styles.createBox}>
-                    <Text style={styles.createTitle}>Nuova Previsione</Text>
+                <View style={[styles.createBox, editingId && {borderColor: '#fbbf24'}]}> {/* Bordo Giallo se modifico */}
+                    
+                    {/* INTESTAZIONE DINAMICA */}
+                    <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+                        <Text style={[styles.createTitle, editingId && {color:'#fbbf24'}]}>
+                            {editingId ? "✏️ MODIFICA POST" : "✨ NUOVA PREVISIONE"}
+                        </Text>
+                        
+                        {/* TASTO ANNULLA (X) - Appare solo se modifichi */}
+                        {editingId && (
+                            <TouchableOpacity onPress={resetForm}>
+                                <Text style={{color:'#ef4444', fontSize:11, fontWeight:'bold'}}>ANNULLA X</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* ... (Qui sotto i TextInput restano UGUALI a prima, non toccarli) ... */}
                     <TextInput style={[styles.input, {marginBottom:10}]} placeholder="Data (es. 15/08/2026)" placeholderTextColor="#94a3b8" value={newDate} onChangeText={setNewDate}/>
                     <View style={{flexDirection:'row', gap:10, marginBottom:10}}>
                         <TextInput style={[styles.input, {flex:1}]} placeholder="Inizio (18:00)" placeholderTextColor="#94a3b8" value={newStartTime} onChangeText={setNewStartTime}/>
                         <TextInput style={[styles.input, {flex:1}]} placeholder="Fine (04:00)" placeholderTextColor="#94a3b8" value={newEndTime} onChangeText={setNewEndTime}/>
                     </View>
                     <TextInput style={[styles.input, {marginBottom:10}]} placeholder="Luogo (es. Stadio San Siro)" placeholderTextColor="#94a3b8" value={newLocation} onChangeText={setNewLocation}/>
+                    
                     <View style={{flexDirection:'row', gap:10}}>
                         <TextInput style={[styles.input, {flex:1}]} placeholder="Note extra (es. Abito scuro)" placeholderTextColor="#94a3b8" value={newNote} onChangeText={setNewNote}/>
-                        <TouchableOpacity style={styles.pubBtn} onPress={handleCreate} disabled={loading}>
-                            <Feather name="send" size={20} color="#0f172a" />
+                        
+                        {/* IL BOTTONE DI INVIO CAMBIA COLORE E ICONA */}
+                        <TouchableOpacity 
+                            style={[styles.pubBtn, editingId && {backgroundColor:'#fbbf24'}]} 
+                            onPress={handleSavePost} // <--- Nota: ora chiama handleSavePost!
+                            disabled={loading}
+                        >
+                            {loading ? <Feather name="loader" size={20} color="#0f172a" /> : 
+                                <Feather name={editingId ? "save" : "send"} size={20} color="#0f172a" />
+                            }
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -247,7 +343,8 @@ export default function MostroRivoluzionario({ navigation }) {
                         userRole={userRole} 
                         currentUser={currentUser} 
                         onDelete={handleDelete} 
-                        onVote={handleVote} 
+                        onVote={handleVote}
+                        onEdit={startEdit}
                     />
                 )}
                 contentContainerStyle={{paddingBottom: 40}}
