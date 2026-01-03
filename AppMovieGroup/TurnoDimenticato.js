@@ -86,6 +86,14 @@ export default function TurnoDimenticato({ navigation, route }) {
         return `${hours}:${minutes}`;
     };
 
+    // --- FUNZIONE MANCANTE (Il Colpevole!) ---
+    const formatRoleLabel = (role) => {
+        if (!role) return '';
+        if (role === 'AMMINISTRATORE') return ' (Admin)';
+        if (role === 'FOUNDER') return ' (Founder)';
+        return ''; // Se è collaboratore semplice, non scriviamo nulla
+    };
+
     // FILTRO COLLABORATORI
     const filteredCollaborators = activeCollaborators.filter(c => 
         c.role === 'COLLABORATORE' || c.role === 'AMMINISTRATORE'

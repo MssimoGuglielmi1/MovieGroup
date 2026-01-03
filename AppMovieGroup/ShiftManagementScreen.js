@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
-import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where } from 'firebase/firestore'; 
+import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where, serverTimestamp } from 'firebase/firestore'; 
 import * as Location from 'expo-location';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
     background: '#000000', surface: '#1C1C1E', textPrimary: '#FFFFFF', textSecondary: '#8E8E93',
     primary: '#4CAF50', accent: '#0A84FF', error: '#FF453A', purple: '#A371F7',
-    gold: '#EAB308', border: '#2C2C2E', success: '#34C759'
+    gold: '#EAB308', border: '#2C2C2E', success: '#34C759', warning: '#d97706',
 };
 
 export default function ShiftManagementScreen({ navigation }) {
@@ -225,6 +225,46 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
         }
     };
 
+// --- 5. LASCIA PASSARE (FIX WEB + APP) ---
+    const handleLasciaPassare = (shift) => {
+        const title = "Forzatura Amministrativa";
+        const msg = "Attenzione: stai per usare il 'LASCIA PASSARE'.\n\nIl turno verrà segnato come COMPLETATO (quindi pagabile), ma mancheranno orario e GPS.\n\nSei sicuro?";
+
+        const executeForce = async () => {
+            setLoadingAction(true);
+            try {
+                console.log("⚡ Forzatura avviata per turno:", shift.id); // DEBUG
+                await updateDoc(doc(db, "shifts", shift.id), {
+                    status: 'completato',
+                    adminOverride: true, 
+                    forcedBy: currentUserId,
+                    completedAt: serverTimestamp()
+                });
+                const okMsg = "Turno convalidato manualmente.";
+                if(Platform.OS === 'web') alert(okMsg);
+                else Alert.alert("Eseguito", okMsg);
+            } catch (e) {
+                console.error("Errore forzatura:", e);
+                if(Platform.OS === 'web') alert("Errore: " + e.message);
+                else Alert.alert("Errore", e.message);
+            } finally {
+                setLoadingAction(false);
+            }
+        };
+
+        // BIVIO WEB vs APP
+        if (Platform.OS === 'web') {
+            if (confirm(`${title}\n\n${msg}`)) {
+                executeForce();
+            }
+        } else {
+            Alert.alert(title, msg, [
+                { text: "Annulla", style: "cancel" },
+                { text: "Sì, LASCIA PASSARE", style: "default", onPress: executeForce }
+            ]);
+        }
+    };
+
 // --- FUNZIONE MAPPE UNIVERSALE (Fisso per Web/iPhone/Android) ---
     const handleOpenMap = (item) => {
         if (item.startLocation && item.startLocation.latitude) {
@@ -293,6 +333,10 @@ const renderShiftItem = ({ item }) => {
         const isMyShift = item.collaboratorId === currentUserId; 
         const statusLower = (item.status || '').toLowerCase();
         const isFounder = currentUserRole === 'FOUNDER';
+        // --- MODIFICA QUI: CALCOLO ORARIO ---
+        const shiftStartDateTime = getShiftDateTime(item.date, item.startTime);
+        // Il turno dovrebbe essere già iniziato? (Adesso > Orario Inizio Turno)
+        const isTimeArrived = currentTime >= shiftStartDateTime;
         // --- CALCOLO COLORI E TESTI ---
         let badgeColor = Colors.accent; // Default Blu (Accettato)
         let badgeText = (item.status || '').toUpperCase();
@@ -337,20 +381,23 @@ const renderShiftItem = ({ item }) => {
                             <Text style={[styles.badgeText, { color: '#FFF' }]}>{badgeText}</Text>
                         </View>
                     </View>
+                    {/* Se c'è override mostriamo piccola icona */}
+                    {item.adminOverride && (
+                        <Text style={{color: Colors.warning, fontSize:10, marginTop:5, fontStyle:'italic'}}>* Convalidato Manualmente</Text>
+                    )}
                 </View>
             );
         }
 
         // --- 2. VERSIONE OPERATIVA / PENDING ---
-        return (
-            <TouchableOpacity style={[
-                styles.card, 
-                statusLower === 'in-corso' && {borderColor: Colors.success, borderWidth:2},
-                // Se è in ritardo grave, mettiamo un bordino grigio per evidenziare il problema
-                isLateStart && {borderColor: '#6b7280', borderWidth: 1, borderStyle: 'dashed'}
-            ]}
-                onPress={() => navigation.navigate('ModificaTurno', { shift: item })}
->
+return (
+    <View style={[
+        styles.card, 
+        statusLower === 'in-corso' && {borderColor: Colors.success, borderWidth:2},
+        isLateStart && {borderColor: '#6b7280', borderWidth: 1, borderStyle: 'dashed'}
+    ]}>
+                {/* A. PARTE CLICCABILE (PER ANDARE A MODIFICA) */}
+    <TouchableOpacity onPress={() => navigation.navigate('ModificaTurno', { shift: item })}>
                 
 {/* RIGA 1: TITOLO */}
 <View style={{marginBottom: 5, flexDirection:'row', justifyContent:'space-between'}}>
@@ -372,6 +419,8 @@ const renderShiftItem = ({ item }) => {
                     </View>
                 </View>
 
+                </TouchableOpacity>
+
                 {/* AREA AZIONI */}
                 <View style={styles.actionContainer}>
                     {/* Se è IN CORSO -> Tasto Emergenza */}
@@ -382,6 +431,18 @@ const renderShiftItem = ({ item }) => {
                         >
                             <Feather name="alert-triangle" size={18} color="#fca5a5" />
                             <Text style={[styles.actionBtnText, {color: '#fca5a5'}]}>ARRESTO EMERGENZA</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* --- NUOVO TASTO: LASCIA PASSARE --- */}
+                    {/* Appare SOLO se: Non sei tu, sei Admin/Founder, e il turno non è già finito o in corso regolare */}
+                    {!isMyShift && (isFounder || currentUserRole === 'AMMINISTRATORE') && statusLower !== 'in-corso' && statusLower !== 'completato' && isTimeArrived && (
+                         <TouchableOpacity 
+                            style={[styles.actionBtn, {backgroundColor: Colors.warning, marginTop: 15}]} 
+                            onPress={() => handleLasciaPassare(item)}
+                        >
+                            <Feather name="check-circle" size={18} color="#FFF" />
+                            <Text style={[styles.actionBtnText, {color: '#FFF'}]}>LASCIA PASSARE 🔓</Text>
                         </TouchableOpacity>
                     )}
 
@@ -399,7 +460,7 @@ const renderShiftItem = ({ item }) => {
                         <Text style={{color:Colors.accent, fontSize:12, marginLeft:5, fontWeight:'bold'}}>VEDI POSIZIONE LIVE</Text>
                     </TouchableOpacity>
                 )}
-            </TouchableOpacity>
+            </View>
         );
     };
 
@@ -466,7 +527,7 @@ const styles = StyleSheet.create({
     badgeText: { fontSize: 10, fontWeight: 'bold' },
     emptyText: { color: Colors.textSecondary, textAlign: 'center', marginTop: 10 },
     actionContainer: { marginTop: 15, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
-    actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, flex: 1 },
+    actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, width: '100%',marginBottom: 10},
     actionBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 12 },
     searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',margin: 15,marginBottom: 5, paddingHorizontal: 15,borderRadius: 10,height: 45,},
     searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
