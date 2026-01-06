@@ -1,17 +1,16 @@
-//CreateShiftScreen.js
+// CreateShiftScreen.js (AGGIORNATO: GESTIONE PAUSA ⏸️)
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator, Switch } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { db, auth } from './firebaseConfig';
-import { collection, addDoc, getDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, doc, onSnapshot } from 'firebase/firestore';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
     background: '#000000', surface: '#1C1C1E', textPrimary: '#FFFFFF', textSecondary: '#8E8E93',
     primary: '#4CAF50', accent: '#0A84FF', error: '#FF453A', border: '#2C2C2E',
-    yellow: '#EAB308', purple: '#A371F7', hidden: '#333'
+    yellow: '#EAB308', purple: '#A371F7', hidden: '#333', orange: '#F97316'
 };
 
 export default function CreateShiftScreen({ navigation, route }) {
@@ -20,10 +19,15 @@ export default function CreateShiftScreen({ navigation, route }) {
     const [selectedCollaborators, setSelectedCollaborators] = useState([]);
     const [location, setLocation] = useState('');
     
-    // Date e Orari
+    // Date e Orari Turno
     const [date, setDate] = useState(new Date());
     const [startTime, setStartTime] = useState(new Date());
     const [endTime, setEndTime] = useState(new Date(new Date().getTime() + 3600000)); // +1 ora default
+
+    // --- NUOVA GESTIONE PAUSA ⏸️ ---
+    const [hasBreak, setHasBreak] = useState(false);
+    const [breakStartTime, setBreakStartTime] = useState(new Date());
+    const [breakEndTime, setBreakEndTime] = useState(new Date(new Date().getTime() + 1800000)); // +30 min default
 
     // ECONOMIA & RUOLI
     const [payoutRate, setPayoutRate] = useState('');
@@ -42,6 +46,10 @@ export default function CreateShiftScreen({ navigation, route }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showStartTimePicker, setShowStartTimePicker] = useState(false);
     const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+    
+    // Popup per Pausa (Mobile)
+    const [showBreakStartPicker, setShowBreakStartPicker] = useState(false);
+    const [showBreakEndPicker, setShowBreakEndPicker] = useState(false);
 
     useEffect(() => {
         // 1. CHI SEI TU?
@@ -56,44 +64,40 @@ export default function CreateShiftScreen({ navigation, route }) {
             }
         });
 
-// -----------------------------------------------------------
-        // 2. CONFIGURAZIONE BANCA (VERSIONE LIVE - FIX CENTESIMI) 🟢
-        // -----------------------------------------------------------
+        // 2. CONFIGURAZIONE BANCA
         const configRef = doc(db, "settings", "globalConfig");
-        
-        // Attiviamo l'ascolto in tempo reale
         const unsubscribeConfig = onSnapshot(configRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if(data.defaultRate) {
-                    console.log("Prezzo aggiornato live:", data.defaultRate); // Debug
-                    setPayoutRate(data.defaultRate); // <--- Questo aggiorna i 10/12 centesimi all'istante!
+                    setPayoutRate(data.defaultRate); 
                     setRateType(data.defaultType || 'hourly');
                     setIsConfigured(true);
                 } else {
                     setIsConfigured(false);
                 }
             }
-            setIsLoadingSettings(false); // Sblocca il caricamento
+            setIsLoadingSettings(false);
         }, (error) => {
             console.log("Errore config:", error);
             setIsLoadingSettings(false);
         });
 
-return () => {
-            unsubscribeUser();   // (C'era già probabilmente)
-            unsubscribeConfig(); // <--- AGGIUNGI QUESTO! Spegne l'ascolto del prezzo
+        return () => {
+            unsubscribeUser();
+            unsubscribeConfig();
         };
     }, []);
 
-    // FILTRO LISTA PERSONE
+// FILTRO LISTA PERSONE (CON BLOCCO AUTO-ASSEGNAZIONE ⛔)
     const filteredCollaborators = activeCollaborators.filter(c => {
+        // 1. Regola Base: Non mostrare MAI me stesso
+        if (c.id === auth.currentUser.uid) return false;
+        // 2. Regole Ruoli
         if (creatorRole === 'FOUNDER') return true; 
         return c.role === 'COLLABORATORE'; 
     });
 
-    // --- FIX FUSO ORARIO (IMPORTANTE) ---
-    // Usiamo l'ora locale (getFullYear, getMonth) invece di toISOString (che usa Londra/UTC)
     const formatDate = (dateObj) => {
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -101,7 +105,6 @@ return () => {
         return `${year}-${month}-${day}`;
     };
 
-// --- FIX FORMATO ORA ( HH:MM SICURO ) ---
     const formatTime = (dateObj) => {
         const hours = String(dateObj.getHours()).padStart(2, '0');
         const minutes = String(dateObj.getMinutes()).padStart(2, '0');
@@ -118,19 +121,17 @@ return () => {
         if(rateType === 'daily') return "A GIORNATA";
         return "ALL'ORA";
     };
+
     // --- FUNZIONI MULTI-SELEZIONE ---
     const toggleCollaborator = (id) => {
         if (selectedCollaborators.includes(id)) {
-            // Se c'è già, lo togliamo (filtro)
             setSelectedCollaborators(prev => prev.filter(cId => cId !== id)); 
         } else {
-            // Se non c'è, lo aggiungiamo alla lista
             setSelectedCollaborators(prev => [...prev, id]); 
         }
     };
 
     const toggleSelectAll = () => {
-        // Se sono tutti selezionati, svuota tutto. Altrimenti seleziona tutti.
         if (selectedCollaborators.length === filteredCollaborators.length) {
             setSelectedCollaborators([]); 
         } else {
@@ -138,14 +139,14 @@ return () => {
         }
     };
 
-// --- FUNZIONE DI SALVATAGGIO "MITRAGLIATRICE" ---
+    // --- FUNZIONE DI SALVATAGGIO ---
     const handleSave = async () => {
         const showAlert = (title, msg) => {
             if (Platform.OS === 'web') alert(`${title}: ${msg}`);
             else Alert.alert(title, msg);
         };
 
-        // 1. Validazione: Controlliamo se la lista è vuota
+        // 1. Validazione Base
         if (selectedCollaborators.length === 0 || !location) { 
             showAlert("Mancano dati", "Seleziona almeno un collaboratore e inserisci il luogo."); 
             return; 
@@ -170,10 +171,47 @@ return () => {
             return; 
         }
 
+        // 4. Validazione Pausa (Se attiva)
+        if (hasBreak) {
+            // Qui potremmo aggiungere controlli, tipo che la pausa non sia più lunga del turno
+            // Ma per ora lasciamo flessibilità.
+        }
+
+        // 🛡️ 4. BLOCCO SICUREZZA PAUSA (NUOVO)
+        if (hasBreak) {
+            // Costruiamo le date complete per la Pausa
+            let bStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakStartTime.getHours(), breakStartTime.getMinutes());
+            let bEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakEndTime.getHours(), breakEndTime.getMinutes());
+            
+            // Costruiamo le date complete per il Turno (per confronto preciso)
+            let shiftStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startTime.getHours(), startTime.getMinutes());
+            let shiftEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endTime.getHours(), endTime.getMinutes());
+
+            // GESTIONE NOTTE (Se scavalca la mezzanotte)
+            if (shiftEndObj < shiftStartObj) shiftEndObj.setDate(shiftEndObj.getDate() + 1);
+            if (bEndObj < bStartObj) bEndObj.setDate(bEndObj.getDate() + 1);
+
+            // Allineamento Pausa se il turno scavalca la notte
+            if (shiftStartObj.getDate() !== shiftEndObj.getDate()) {
+                // Se la pausa è di mattina (es. 02:00) ma il turno iniziava ieri sera (es. 22:00)
+                if (bStartObj.getHours() < 12 && shiftStartObj.getHours() > 12) {
+                    bStartObj.setDate(bStartObj.getDate() + 1);
+                    bEndObj.setDate(bEndObj.getDate() + 1);
+                }
+            }
+
+            // IL CONTROLLO REALE 👮‍♂️
+            // 1. Pausa inizia PRIMA del turno?
+            // 2. Pausa finisce DOPO il turno?
+            if (bStartObj < shiftStartObj || bEndObj > shiftEndObj) {
+                showAlert("Errore Pausa ⚠️", "La pausa deve essere INTERNA al turno.\nControlla gli orari.");
+                return; // ⛔ STOP
+            }
+        }
+
         setLoading(true);
         try {
             // --- CICLO DI CREAZIONE MULTIPLO ---
-            // Prepariamo tutte le creazioni in memoria
             const createShiftPromises = selectedCollaborators.map(async (collabId) => {
                 const collabData = activeCollaborators.find(c => c.id === collabId);
                 const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
@@ -187,6 +225,13 @@ return () => {
                     date: formatDate(date),
                     startTime: formatTime(startTime),
                     endTime: formatTime(endTime),
+                    
+                    // --- DATI PAUSA ---
+                    hasBreak: hasBreak,
+                    breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
+                    breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
+                    // ------------------
+
                     payoutRate: safeRate,
                     rateType: rateType,     
                     status: 'assegnato',     
@@ -195,24 +240,19 @@ return () => {
                     createdAt: new Date().toISOString()
                 };
 
-                // Salvataggio effettivo
                 await addDoc(collection(db, "shifts"), shiftData);
 
-// Notifica Push POTENZIATA 🚀
+                // Notifica Push
                 if (collabData && collabData.expoPushToken) {
                     const messageBody = `Sei stato convocato per un turno a ${location} il ${formatDate(date)}. Entra e CONFERMA la presenza!`;
                     await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
                 }
             });
 
-            // Eseguiamo tutto insieme
             await Promise.all(createShiftPromises);
 
             showAlert("SUCCESSO 🚀", `${selectedCollaborators.length} Turni assegnati correttamente!`);
-            
-            // --- NON TORNA INDIETRO (navigation.goBack rimosso) ---
-            setSelectedCollaborators([]); // Pulisce solo i nomi selezionati
-            // Location e orari restano lì per il prossimo inserimento
+            setSelectedCollaborators([]); 
 
         } catch (error) { 
             console.error("ERRORE SALVATAGGIO:", error);
@@ -225,6 +265,10 @@ return () => {
     const onDateChange = (event, selectedDate) => { setShowDatePicker(false); if(selectedDate) setDate(selectedDate); };
     const onStartTimeChange = (event, selectedDate) => { setShowStartTimePicker(false); if(selectedDate) setStartTime(selectedDate); };
     const onEndTimeChange = (event, selectedDate) => { setShowEndTimePicker(false); if(selectedDate) setEndTime(selectedDate); };
+    
+    // Callback Pausa
+    const onBreakStartChange = (event, selectedDate) => { setShowBreakStartPicker(false); if(selectedDate) setBreakStartTime(selectedDate); };
+    const onBreakEndChange = (event, selectedDate) => { setShowBreakEndPicker(false); if(selectedDate) setBreakEndTime(selectedDate); };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -238,12 +282,12 @@ return () => {
             {isLoadingSettings ? <ActivityIndicator style={{marginTop:100}} color={Colors.primary} size="large" /> :
             <ScrollView contentContainerStyle={styles.content}>
 
-{/* --- SEZIONE 1: SCELTA PERSONE (MULTI) --- */}
+                {/* --- SEZIONE 1: SCELTA PERSONE (MULTI) --- */}
                 <View style={styles.sectionCard}>
                     <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:15}}>
                         <View style={{flexDirection:'row', alignItems:'center'}}>
                             <Feather name="users" size={18} color={Colors.accent} />
-                            <Text style={styles.sectionTitle}>SQUADRA ({selectedCollaborators.length})</Text>
+                            <Text style={styles.sectionTitle}>SELEZIONATI ({selectedCollaborators.length})</Text>
                         </View>
                         <TouchableOpacity onPress={toggleSelectAll}>
                             <Text style={{color: Colors.accent, fontWeight:'bold', fontSize:12}}>
@@ -252,11 +296,9 @@ return () => {
                         </TouchableOpacity>
                     </View>
                     
-                    {/* SCROLLVIEW PER LA LISTA NOMI CON SPUNTE */}
                     <View style={styles.listContainer}>
                         <ScrollView nestedScrollEnabled={true} style={{maxHeight: 250}}>
                             {filteredCollaborators.map((collab) => {
-                                // Controlliamo se questo specifico tizio è nella lista dei selezionati
                                 const isSelected = selectedCollaborators.includes(collab.id);
                                 return (
                                     <TouchableOpacity 
@@ -280,15 +322,9 @@ return () => {
                             })}
                         </ScrollView>
                     </View>
-
-                    {creatorRole !== 'FOUNDER' && (
-                        <Text style={{color: Colors.textSecondary, fontSize: 10, marginTop: 8, fontStyle:'italic'}}>
-                            * Seleziona più persone per creare lo stesso turno a tutti.
-                        </Text>
-                    )}
                 </View>
 
-                {/* --- SEZIONE 2: LUOGO E ORA (CON FIX DATA E FIX HTML WEB) --- */}
+                {/* --- SEZIONE 2: LUOGO E ORA --- */}
                 <View style={styles.sectionCard}>
                     <View style={styles.sectionHeader}><Feather name="map-pin" size={18} color={Colors.yellow} /><Text style={[styles.sectionTitle, {color: Colors.yellow}]}>LOCATION & ORARI</Text></View>
                     <TextInput style={styles.input} placeholder="Luogo o Evento" placeholderTextColor={Colors.textSecondary} value={location} onChangeText={setLocation} />
@@ -297,11 +333,10 @@ return () => {
                     {/* --- DATA --- */}
                     <Text style={[styles.smallLabel, {marginBottom:5}]}>DATA EVENTO</Text>
                     {Platform.OS === 'web' ? (
-                        // WEB: HTML INPUT DATE (Bianco) - Fix cliccabilità PC
                         <View style={{height: 50, marginBottom: 15}}>
                             <input 
                                 type="date"
-                                value={formatDate(date)} // Usa la nuova funzione locale!
+                                value={formatDate(date)} 
                                 onChange={(e) => setDate(new Date(e.target.value))}
                                 style={{
                                     width: '100%', height: '100%',
@@ -312,7 +347,6 @@ return () => {
                             />
                         </View>
                     ) : (
-                        // MOBILE: REACT NATIVE PICKER
                         <>
                             <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
                                 <Feather name="calendar" size={20} color={Colors.textPrimary} />
@@ -324,13 +358,11 @@ return () => {
                         </>
                     )}
 
-                    {/* --- ORARI --- */}
+                    {/* --- ORARI TURNO --- */}
                     <View style={styles.row}>
-                        {/* INIZIO */}
                         <View style={{flex:1, marginRight:10}}>
-                            <Text style={[styles.smallLabel, {marginBottom:5}]}>INIZIO</Text>
+                            <Text style={[styles.smallLabel, {marginBottom:5}]}>INIZIO TURNO</Text>
                             {Platform.OS === 'web' ? (
-                                // WEB: HTML INPUT TIME
                                 <View style={{height: 50}}>
                                     <input 
                                         type="time"
@@ -342,16 +374,10 @@ return () => {
                                             newTime.setHours(h); newTime.setMinutes(m);
                                             setStartTime(newTime);
                                         }}
-                                        style={{
-                                            width: '100%', height: '100%',
-                                            backgroundColor: 'white', color: 'black',
-                                            borderRadius: '10px', border: '1px solid #333',
-                                            padding: '10px', fontSize: '16px'
-                                        }}
+                                        style={{width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '10px', border: '1px solid #333', padding: '10px', fontSize: '16px'}}
                                     />
                                 </View>
                             ) : (
-                                // MOBILE
                                 <>
                                     <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.timeButton}>
                                         <Text style={styles.timeText}>{formatTime(startTime)}</Text>
@@ -361,11 +387,9 @@ return () => {
                             )}
                         </View>
 
-                        {/* FINE */}
                         <View style={{flex:1, marginLeft:10}}>
-                            <Text style={[styles.smallLabel, {marginBottom:5}]}>FINE</Text>
+                            <Text style={[styles.smallLabel, {marginBottom:5}]}>FINE TURNO</Text>
                             {Platform.OS === 'web' ? (
-                                // WEB: HTML INPUT TIME
                                 <View style={{height: 50}}>
                                     <input 
                                         type="time"
@@ -377,16 +401,10 @@ return () => {
                                             newTime.setHours(h); newTime.setMinutes(m);
                                             setEndTime(newTime);
                                         }}
-                                        style={{
-                                            width: '100%', height: '100%',
-                                            backgroundColor: 'white', color: 'black',
-                                            borderRadius: '10px', border: '1px solid #333',
-                                            padding: '10px', fontSize: '16px'
-                                        }}
+                                        style={{width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '10px', border: '1px solid #333', padding: '10px', fontSize: '16px'}}
                                     />
                                 </View>
                             ) : (
-                                // MOBILE
                                 <>
                                     <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.timeButton}>
                                         <Text style={styles.timeText}>{formatTime(endTime)}</Text>
@@ -398,7 +416,86 @@ return () => {
                     </View>
                 </View>
 
-                {/* --- SEZIONE 3: SOLDI --- */}
+                {/* --- SEZIONE 3: PAUSA ⏸️ (NUOVA) --- */}
+                <View style={[styles.sectionCard, {borderColor: Colors.orange}]}>
+                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                            <Feather name="coffee" size={18} color={Colors.orange} />
+                            <Text style={[styles.sectionTitle, {color: Colors.orange}]}>PAUSA PRANZO / CENA</Text>
+                        </View>
+                        <Switch 
+                            value={hasBreak} 
+                            onValueChange={setHasBreak}
+                            trackColor={{ false: "#767577", true: Colors.orange }}
+                            thumbColor={hasBreak ? "#FFF" : "#f4f3f4"}
+                        />
+                    </View>
+
+                    {hasBreak && (
+                        <View style={{marginTop: 15}}>
+                            <View style={styles.divider}/>
+                            <View style={styles.row}>
+                                {/* INIZIO PAUSA */}
+                                <View style={{flex:1, marginRight:10}}>
+                                    <Text style={[styles.smallLabel, {marginBottom:5, color:Colors.orange}]}>INIZIO PAUSA</Text>
+                                    {Platform.OS === 'web' ? (
+                                        <View style={{height: 50}}>
+                                            <input 
+                                                type="time"
+                                                value={breakStartTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                                onChange={(e) => {
+                                                    if(!e.target.value) return;
+                                                    const [h, m] = e.target.value.split(':');
+                                                    const newTime = new Date(breakStartTime);
+                                                    newTime.setHours(h); newTime.setMinutes(m);
+                                                    setBreakStartTime(newTime);
+                                                }}
+                                                style={{width: '100%', height: '100%', backgroundColor: '#fff7ed', color: 'black', borderRadius: '10px', border: '1px solid orange', padding: '10px', fontSize: '16px'}}
+                                            />
+                                        </View>
+                                    ) : (
+                                        <>
+                                            <TouchableOpacity onPress={() => setShowBreakStartPicker(true)} style={[styles.timeButton, {borderColor: Colors.orange}]}>
+                                                <Text style={[styles.timeText, {color:Colors.orange}]}>{formatTime(breakStartTime)}</Text>
+                                            </TouchableOpacity>
+                                            {showBreakStartPicker && <DateTimePicker value={breakStartTime} mode="time" is24Hour={true} display="default" onChange={onBreakStartChange} />}
+                                        </>
+                                    )}
+                                </View>
+
+                                {/* FINE PAUSA */}
+                                <View style={{flex:1, marginLeft:10}}>
+                                    <Text style={[styles.smallLabel, {marginBottom:5, color:Colors.orange}]}>FINE PAUSA</Text>
+                                    {Platform.OS === 'web' ? (
+                                        <View style={{height: 50}}>
+                                            <input 
+                                                type="time"
+                                                value={breakEndTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                                onChange={(e) => {
+                                                    if(!e.target.value) return;
+                                                    const [h, m] = e.target.value.split(':');
+                                                    const newTime = new Date(breakEndTime);
+                                                    newTime.setHours(h); newTime.setMinutes(m);
+                                                    setBreakEndTime(newTime);
+                                                }}
+                                                style={{width: '100%', height: '100%', backgroundColor: '#fff7ed', color: 'black', borderRadius: '10px', border: '1px solid orange', padding: '10px', fontSize: '16px'}}
+                                            />
+                                        </View>
+                                    ) : (
+                                        <>
+                                            <TouchableOpacity onPress={() => setShowBreakEndPicker(true)} style={[styles.timeButton, {borderColor: Colors.orange}]}>
+                                                <Text style={[styles.timeText, {color:Colors.orange}]}>{formatTime(breakEndTime)}</Text>
+                                            </TouchableOpacity>
+                                            {showBreakEndPicker && <DateTimePicker value={breakEndTime} mode="time" is24Hour={true} display="default" onChange={onBreakEndChange} />}
+                                        </>
+                                    )}
+                                </View>
+                            </View>
+                        </View>
+                    )}
+                </View>
+
+                {/* --- SEZIONE 4: SOLDI --- */}
                 {canSeeMoney ? (
                     <View style={[styles.sectionCard, {borderColor: isConfigured ? Colors.primary : Colors.error, borderWidth:1}]}>
                         <View style={styles.sectionHeader}>

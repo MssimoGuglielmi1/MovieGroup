@@ -38,7 +38,46 @@ export const calculateFiscalData = (shift) => {
     }
 
 // Calcolo Minuti Lavorati (SOLO MINUTI INTERI)
-    const diffMs = effectiveEnd - effectiveStart;
+    let diffMs = effectiveEnd - effectiveStart;
+    // --- 4. GESTIONE PAUSA (AGGIUNTA L'ARCHITETTO) ---
+    // Controlliamo se l'interruttore è attivo E se ci sono gli orari scritti
+    if (shift.hasBreak && shift.breakStartTime && shift.breakEndTime) {
+        
+        // Ricostruiamo la data della pausa usando anno/mese/giorno del turno
+        const [hb1, mb1] = shift.breakStartTime.split(':').map(Number);
+        const breakStart = new Date(year, month - 1, day, hb1, mb1, 0);
+
+        const [hb2, mb2] = shift.breakEndTime.split(':').map(Number);
+        const breakEnd = new Date(year, month - 1, day, hb2, mb2, 0);
+
+        // --- GESTIONE NOTTURNA DELLA PAUSA ---
+        // CASO 1: Se la pausa inizia "prima" dell'inizio turno (es. turno 22:00, pausa 02:00)
+        // Significa che la pausa è il giorno dopo.
+        if (breakStart < scheduledStart) {
+            breakStart.setDate(breakStart.getDate() + 1);
+        }
+        
+        // CASO 2: Se la fine della pausa è prima dell'inizio (es. pausa 23:30 - 00:30)
+        // Significa che la pausa scavalca la mezzanotte.
+        if (breakEnd < breakStart) {
+            breakEnd.setDate(breakEnd.getDate() + 1);
+        }
+        // CASO 3: Se l'inizio pausa era già domani, assicuriamoci che anche la fine lo sia
+        else if (breakStart.getDate() > day) {
+             if (breakEnd.getDate() === day) {
+                 breakEnd.setDate(breakEnd.getDate() + 1);
+             }
+        }
+
+        // Calcoliamo quanto dura la pausa in millisecondi
+        const breakDurationMs = breakEnd - breakStart;
+
+        // --- LA SOTTRAZIONE ---
+        // Togliamo i minuti di pausa SOLO se ha senso (durata > 0 e non dura più del turno stesso!)
+        if (breakDurationMs > 0 && breakDurationMs < diffMs) {
+            diffMs -= breakDurationMs; // ECCO IL TRUCCO: diffMs diventa più piccolo
+        }
+    }
     // Math.floor taglia via i secondi (es. 10m 59s diventa 10m)
     const minutesWorked = Math.floor(diffMs / 1000 / 60);
 

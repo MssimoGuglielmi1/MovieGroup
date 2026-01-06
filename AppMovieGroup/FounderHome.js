@@ -91,6 +91,24 @@ export default function FounderHome({ navigation }) {
   // Nota: Lo stato c'è ma lo forziamo nel salvataggio a 'minute'
   const [globalType, setGlobalType] = useState('minute'); 
   const [savingSettings, setSavingSettings] = useState(false);
+  // --- STATO REAZIONI BACHECA ---
+  const [totalReactions, setTotalReactions] = useState(0);
+
+  useEffect(() => {
+      const q = query(collection(db, "provisional_shifts"));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          let count = 0;
+          snapshot.docs.forEach(doc => {
+              const data = doc.data();
+              // Se ci sono disponibilità, contale tutte (chiavi dell'oggetto)
+              if (data.availabilities) {
+                  count += Object.keys(data.availabilities).length;
+              }
+          });
+          setTotalReactions(count);
+      });
+      return unsubscribe;
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -342,12 +360,25 @@ return (
 
         <Text style={styles(Colors).sectionTitle}>STRUMENTI AVANZATI</Text>
 
-        {/* BOARD */}
+{/* BOARD (CON CONTATORE RISPOSTE 🔔) */}
         <TouchableOpacity style={styles(Colors).wideWidget} onPress={() => navigation.navigate('Board')}>
             <View style={{flexDirection:'row', alignItems:'center'}}>
-                <View style={[styles(Colors).iconCircle, {backgroundColor: Colors.accentPurple+'20'}]}><Feather name="radio" size={24} color={Colors.accentPurple} /></View>
+                <View style={[styles(Colors).iconCircle, {backgroundColor: Colors.accentPurple+'20'}]}>
+                    <Feather name="radio" size={24} color={Colors.accentPurple} />
+                </View>
                 <View style={{marginLeft: 15}}>
-                    <Text style={[styles(Colors).widgetTitle, {color: Colors.accentPurple}]}>PROGRAMMA UN TURNO</Text>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                        <Text style={[styles(Colors).widgetTitle, {color: Colors.accentPurple}]}>PROGRAMMA UN TURNO</Text>
+                        
+                        {/* 🔔 CAMPANELLA SE QUALCUNO HA RISPOSTO */}
+                        {totalReactions > 0 && (
+                            <View style={{
+                                backgroundColor: Colors.accentPurple, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8
+                            }}>
+                                <Text style={{color: '#FFF', fontSize: 10, fontWeight: 'bold'}}>🔔 {totalReactions} RISPOSTE</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={styles(Colors).widgetSubtitle}>Crea una proposta di turno e valuta</Text>
                 </View>
             </View>

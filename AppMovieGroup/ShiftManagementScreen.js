@@ -6,11 +6,12 @@ import { db, auth } from './firebaseConfig';
 import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where, serverTimestamp } from 'firebase/firestore'; 
 import * as Location from 'expo-location';
 import { sendPushNotification } from './Notifiche';
+import WelcomeModal from './WelcomeModal';
 
 const Colors = {
     background: '#000000', surface: '#1C1C1E', textPrimary: '#FFFFFF', textSecondary: '#8E8E93',
     primary: '#4CAF50', accent: '#0A84FF', error: '#FF453A', purple: '#A371F7',
-    gold: '#EAB308', border: '#2C2C2E', success: '#34C759', warning: '#d97706',
+    gold: '#EAB308', border: '#2C2C2E', success: '#34C759', warning: '#d97706', orange: '#F97316'
 };
 
 export default function ShiftManagementScreen({ navigation }) {
@@ -20,6 +21,7 @@ export default function ShiftManagementScreen({ navigation }) {
     const [currentUserRole, setCurrentUserRole] = useState(null);
     const [searchText, setSearchText] = useState(''); // <--- STATO PER LA RICERCA
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
+    const [showGuide, setShowGuide] = useState(false); // <--- Stato per aprire/chiudere la guida
 
     // Recupera il ruolo dell'utente corrente
     useEffect(() => {
@@ -362,7 +364,19 @@ const renderShiftItem = ({ item }) => {
                 badgeText = "CONFERMATO";
             }
         }
-        else if (statusLower === 'in-corso') { badgeColor = Colors.success; }
+        // ...
+        else if (statusLower === 'in-corso') { 
+            // Se l'ora attuale è PRIMA dell'inizio previsto -> Giallo "PRONTO"
+            if (currentTime < shiftStartDateTime) {
+                badgeColor = Colors.warning; // O Colors.gold
+                badgeText = "PRONTO";
+            } else {
+                // Se l'ora è scoccata -> Verde "IN-CORSO"
+                badgeColor = Colors.success;
+                badgeText = "IN-CORSO";
+            }
+        }
+        // ...
         // --- 1. VERSIONE STORICO (Opaca) ---
         if (currentTab === 'HISTORY') {
             return (
@@ -397,7 +411,21 @@ return (
         isLateStart && {borderColor: '#6b7280', borderWidth: 1, borderStyle: 'dashed'}
     ]}>
                 {/* A. PARTE CLICCABILE (PER ANDARE A MODIFICA) */}
-    <TouchableOpacity onPress={() => navigation.navigate('ModificaTurno', { shift: item })}>
+    <TouchableOpacity 
+                onPress={() => {
+                    // SE È IL MIO TURNO -> BLOCCO ⛔
+                    if (isMyShift) {
+                        Alert.alert(
+                            "MODIFICA NEGATA ⛔", 
+                            "Non puoi modificare i turni assegnati a te stesso. Chiedi a un altro Admin o al Founder."
+                        );
+                    } 
+                    // ALTRIMENTI -> VAI A MODIFICA ✅
+                    else {
+                        navigation.navigate('ModificaTurno', { shift: item });
+                    }
+                }}
+            >
                 
 {/* RIGA 1: TITOLO */}
 <View style={{marginBottom: 5, flexDirection:'row', justifyContent:'space-between'}}>
@@ -407,6 +435,16 @@ return (
 
                 {/* RIGA 2: ORARIO */}
                 <Text style={styles.timeText}>📅 {item.date} • ⏰ {item.startTime} - {item.endTime}</Text>
+                {/* --- BLOCCO PAUSA --- */}
+                {item.hasBreak && (
+                    <View style={{flexDirection:'row', alignItems:'center', marginTop:2, marginBottom:5}}>
+                        <Feather name="coffee" size={12} color={Colors.orange || '#F97316'} />
+                        <Text style={{color: Colors.orange || '#F97316', fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
+                            PAUSA: {item.breakStartTime} - {item.breakEndTime}
+                        </Text>
+                    </View>
+                )}
+                {/* ------------------- */}
                 
                 {/* RIGA 3: NOME + BADGE DINAMICO */}
                 <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop: 5}}>
@@ -469,12 +507,22 @@ return (
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-            <View style={styles.headerContainer}>
+<View style={styles.headerContainer}>
+                {/* SINISTRA: Tasto Indietro */}
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Feather name="arrow-left" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.screenTitle}>GESTIONE TURNI</Text>
-                {loadingAction && <ActivityIndicator size="small" color={Colors.accent} style={{marginLeft:10}}/>}
+
+                {/* CENTRO: Titolo (Con flex:1 si prende tutto lo spazio) */}
+                <View style={{flex: 1, flexDirection: 'row', alignItems: 'center'}}>
+                    <Text style={styles.screenTitle} numberOfLines={1}>GESTIONE TURNI</Text>
+                    {loadingAction && <ActivityIndicator size="small" color={Colors.accent} style={{marginLeft:10}}/>}
+                </View>
+
+                {/* DESTRA: Tasto Info Guida */}
+                <TouchableOpacity onPress={() => setShowGuide(true)} style={{padding: 5}}>
+                    <Feather name="help-circle" size={24} color={Colors.cyan || '#06b6d4'} />
+                </TouchableOpacity>
             </View>
             {/* --- BARRA DI RICERCA NUOVA --- */}
             <View style={styles.searchContainer}>
@@ -503,6 +551,12 @@ return (
                 renderItem={renderShiftItem}
                 contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
                 ListEmptyComponent={<View style={{marginTop: 50, alignItems:'center'}}><Feather name="inbox" size={40} color={Colors.textSecondary} /><Text style={styles.emptyText}>Nessun turno in questa lista.</Text></View>}
+            />
+{/* --- MODAL GUIDA --- */}
+            <WelcomeModal 
+                visible={showGuide} 
+                onClose={() => setShowGuide(false)} 
+                userRole="GESTORE_TURNI"  // <--- PRIMA ERA "AMMINISTRATORE", ORA CAMBIALO COSÌ
             />
         </SafeAreaView>
     );

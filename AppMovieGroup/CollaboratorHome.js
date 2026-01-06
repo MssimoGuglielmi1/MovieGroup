@@ -14,7 +14,7 @@ import { sendPushNotification } from './Notifiche';
 const Colors = {
     background: '#000000', surface: '#1C1C1E', primary: '#4CAF50', accent: '#0A84FF',
     textMain: '#FFFFFF', textSub: '#8E8E93', border: '#2C2C2E', error: '#FF453A',
-    cyan: '#00D1FF', yellow: '#EAB308', purple: '#BF5AF2'
+    cyan: '#00D1FF', yellow: '#EAB308', purple: '#BF5AF2', orange: '#F97316'
 };
 
 const ColorSchemes = {
@@ -40,6 +40,17 @@ export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile,
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showGuide, setShowGuide] = useState(false);
   const [showProfileWarning, setShowProfileWarning] = useState(false);
+  // --- STATO NOTIFICHE BACHECA ---
+  const [boardCount, setBoardCount] = useState(0);
+
+  useEffect(() => {
+      // Ascoltiamo la bacheca in tempo reale
+      const q = query(collection(db, "provisional_shifts"));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          setBoardCount(snapshot.size); // Conta quanti post ci sono
+      });
+      return unsubscribe;
+  }, []);
 
   // IMPORTANTE: Definiamo gli stili qui dentro o usiamo un useMemo, ma per semplicità ora lo metto qui sotto la definizione
   const styles = getStyles(CurrentColors);
@@ -202,21 +213,24 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
 
       setLoadingLocation(true);
       try {
-          // 1. Chiediamo permesso
+// 1. Chiediamo permesso
           let { status } = await Location.requestForegroundPermissionsAsync();
 
-          // 2. Se l'utente ha rifiutato
+          // 2. Se l'utente ha rifiutato (O se è "denied")
           if (status !== 'granted') {
               Alert.alert(
-                  "GPS Necessario",
-                  "Hai negato l'accesso alla posizione. Devi abilitarlo dalle impostazioni per poter timbrare.",
+                  "PERMESSI NEGATI ❌",
+                  "Senza GPS non posso validare la tua presenza.\n\nTocca 'VAI A IMPOSTAZIONI' > Permessi > Posizione > Consenti.",
                   [
                       { text: "Annulla", style: "cancel" },
-                      { text: "Apri Impostazioni", onPress: () => Linking.openSettings() } 
+                      { 
+                          text: "VAI A IMPOSTAZIONI ⚙️", 
+                          onPress: () => Linking.openSettings() // <--- ECCO LA MAGIA
+                      } 
                   ]
               );
-              setLoadingLocation(false);
-              return;
+              setLoadingLocation(false); // Spegni la rotellina
+              return; // Blocca tutto
           }
 
           // 3. Se permesso OK, prendiamo posizione
@@ -394,16 +408,39 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
             <Feather name="chevron-right" size={24} color={CurrentColors.textSub} />
         </TouchableOpacity>
 
+{/* --- BOTTONE BACHECA (CORRETTO PER COLLABORATORE) --- */}
         <TouchableOpacity
             style={[styles.historyWidget, {borderColor: Colors.purple, borderWidth: 1, marginTop: 10}]}
-            onPress={() => onNavigateBoard ? onNavigateBoard() : Alert.alert("Info", "Presto disponibile")}
+            onPress={() => {
+                // QUI LA CORREZIONE FONDAMENTALE:
+                if (onNavigateBoard) onNavigateBoard(); 
+                else console.log("Navigazione non disponibile");
+            }}
         >
             <View style={{flexDirection:'row', alignItems:'center'}}>
+                {/* ICONA */}
                 <View style={[styles.iconCircle, {backgroundColor: Colors.purple + '20'}]}>
                     <Feather name="radio" size={24} color={Colors.purple} />
                 </View>
+
+                {/* TESTI + NOTIFICA */}
                 <View style={{marginLeft: 15}}>
-                    <Text style={[styles.widgetTitle, {color: Colors.purple}]}>BACHECA TURNI</Text>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                        <Text style={[styles.widgetTitle, {color: Colors.purple}]}>BACHECA TURNI</Text>
+                        
+                        {/* 🔴 PALLINO ROSSO (Appare solo se ci sono nuovi post) */}
+                        {boardCount > 0 && (
+                             <View style={{
+                                backgroundColor: CurrentColors.error, 
+                                borderRadius: 10, 
+                                paddingHorizontal: 6, 
+                                paddingVertical: 2, 
+                                marginLeft: 8
+                            }}>
+                                <Text style={{color: '#FFF', fontSize: 10, fontWeight: 'bold'}}>{boardCount} IN LISTA</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={styles.widgetSubtitle}>Proponiti per un turno, aggiungi una nota.</Text>
                 </View>
             </View>
@@ -416,10 +453,30 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                 <Text style={[styles.sectionTitle, {color: CurrentColors.yellow}]}>⚠️ DA CONFERMARE ({invites.length})</Text>
                 {invites.map(invite => (
                     <View key={invite.id} style={[styles.card, {borderColor: CurrentColors.yellow}]}>
-                        <View style={styles.cardHeader}>
+<View style={styles.cardHeader}>
+                        {/* SINISTRA: LUOGO */}
+                        <View style={{flex: 1, marginRight: 10}}>
                             <Text style={styles.cardTitle}>{invite.location}</Text>
-                            <Text style={[styles.cardSubtitle, {color: CurrentColors.cyan}]}>{invite.date} • {invite.startTime}</Text>
                         </View>
+
+                        {/* DESTRA: COLONNA ORARI E PAUSA (Allineati a destra) */}
+                        <View style={{alignItems: 'flex-end'}}>
+                            {/* 1. DATA E ORA TURNO */}
+                            <Text style={[styles.cardSubtitle, {color: CurrentColors.cyan, textAlign: 'right'}]}>
+                                {invite.date} • {invite.startTime} - {invite.endTime}
+                            </Text>
+
+                            {/* 2. PAUSA (Sotto l'orario) */}
+                            {invite.hasBreak && (
+                                <View style={{flexDirection:'row', alignItems:'center', marginTop: 4}}>
+                                    <Feather name="coffee" size={12} color={CurrentColors.orange || '#F97316'} />
+                                    <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
+                                        PAUSA: {invite.breakStartTime} - {invite.breakEndTime}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
                         <View style={styles.buttonRow}>
                             <TouchableOpacity onPress={()=>handleDecline(invite.id)} style={[styles.actionButton, {borderColor: CurrentColors.error, borderWidth:1}]}><Text style={{color: CurrentColors.error, fontWeight:'bold'}}>Rifiuta</Text></TouchableOpacity>
                             <TouchableOpacity onPress={()=>handleAccept(invite)} style={[styles.actionButton, {backgroundColor: CurrentColors.primary}]}><Text style={{color: '#000', fontWeight:'bold'}}>Accetta</Text></TouchableOpacity>
@@ -432,7 +489,7 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
         {/* --- SEZIONE 2: IN ARRIVO / OGGI (Urgenti) --- */}
         {activeShifts.length > 0 && (
             <View style={styles.section}>
-                <Text style={[styles.sectionTitle, {color: CurrentColors.accent}]}>🔥 IN ARRIVO / OGGI</Text>
+                <Text style={[styles.sectionTitle, {color: CurrentColors.accent}]}>🔔 IN ARRIVO / OGGI</Text>
                 {activeShifts.map(shift => {
                     // Logica interna della Card
                     const statusCheck = checkShiftStatus(shift.date, shift.startTime, shift.endTime);
@@ -443,8 +500,18 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
 
                     return (
                         <View key={shift.id} style={[styles.card, {borderColor: CurrentColors.accent, borderWidth: 1}]}>
-                             <View style={styles.cardHeader}>
+                             <View style={styles.cardHeader}>                  
                                 <View><Text style={styles.cardTitle}>{shift.location}</Text><Text style={styles.cardSubtitle}>{shift.date} • {shift.startTime} - {shift.endTime}</Text></View>
+                                {/* --- INIZIO CODICE PAUSA --- */}
+                            {shift.hasBreak && (
+                                <View style={{flexDirection:'row', alignItems:'center', marginTop:5}}>
+                                    <Feather name="coffee" size={13} color={CurrentColors.orange || '#F97316'} />
+                                    <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 12, fontWeight: 'bold', marginLeft: 5}}>
+                                        PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
+                                    </Text>
+                                </View>
+                            )}
+                            {/* --- FINE CODICE PAUSA --- */}
                             </View>
                             
                             {isInProgress ? (
@@ -489,6 +556,16 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                     <View key={shift.id} style={styles.card}>
                         <View style={styles.cardHeader}>
                             <View><Text style={styles.cardTitle}>{shift.location}</Text><Text style={styles.cardSubtitle}>{shift.date} • {shift.startTime} - {shift.endTime}</Text></View>
+                            {/* --- INIZIO CODICE PAUSA --- */}
+                        {shift.hasBreak && (
+                            <View style={{flexDirection:'row', alignItems:'center', marginTop:5}}>
+                                <Feather name="coffee" size={13} color={CurrentColors.orange || '#F97316'} />
+                                <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 12, fontWeight: 'bold', marginLeft: 5}}>
+                                    PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
+                                </Text>
+                            </View>
+                        )}
+                        {/* --- FINE CODICE PAUSA --- */}
                         </View>
                         <View style={{marginTop: 10, padding: 10, backgroundColor: CurrentColors.surface, borderRadius: 8}}>
                              <Text style={{color: CurrentColors.textSub, fontSize: 12}}>🕑 Programmato - Apparirà in alto quando sarà il momento.</Text>

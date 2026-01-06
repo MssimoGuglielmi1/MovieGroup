@@ -298,7 +298,7 @@ export default function MostroRivoluzionario({ navigation }) {
                     {/* INTESTAZIONE DINAMICA */}
                     <View style={{flexDirection:'row', justifyContent:'space-between'}}>
                         <Text style={[styles.createTitle, editingId && {color:'#fbbf24'}]}>
-                            {editingId ? "✏️ MODIFICA POST" : "✨ NUOVA PREVISIONE"}
+                            {editingId ? "✏️ MODIFICA POST" : "CREA"}
                         </Text>
                         
                         {/* TASTO ANNULLA (X) - Appare solo se modifichi */}

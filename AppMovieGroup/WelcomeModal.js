@@ -142,34 +142,49 @@ const STEPS_LEGEND_ADMIN = [
     { icon: 'phone', color: Colors.primary, title: 'CHIAMA AGILE', desc: 'Avvia una chiamata diretta al numero registrato (Se registrato).                  P.S. il tuo staff ha un avviso che gli ricorda di compilare tutti i campi, qualora non fossero compilati.' },
     { icon: 'trash-2', color: Colors.error, title: 'LICENZIA', desc: 'Dal tasto a forma di cestino, fai: SPARIRE DEFINITIVAMENTE PER SEMPRE SENZA POSSIBILITà DI RECUPERO INFO, LUTENTE (CONSIGLIO VIVAMENTE DI LICENZIARE SOLO DOPO AVER FATTO LA BUSTA PAGA, NEL MENTRE PREMI IL LUCCHETTO COSI GLI IMPEDISCI LACCESSO IN APP, PER QUALSIASI DOMANDA CHIAMAMI BY MASSIMO 3382375785).' }
 ];
+// --- 4. GESTIONE TURNI (LA TORRE DI CONTROLLO) 🔥 NUOVO! ---
+const STEPS_SHIFT_MGMT = [
+    { icon: 'filter', color: Colors.text, title: '1. LE TRE SEZIONI', desc: '"SEZIONE DA CONFERMARE" ( I turni in attesa di accettazione o rifiuto ). "SEZIONE OPERATIVI" ( Qui trovi tutti i turni che sono "accettati", e tutti i turni "in-corso" ). "SEZIONE STORICO" ( Lo storico mostra tutti i turni, sia quelli rifiutati, sia quelli salvati con successo ).' },
+    { icon: 'search', color: Colors.text, title: '2. RICERCA RAPIDA', desc: 'Usa la barra in alto per trovare subito un collaboratore o una data specifica.' },
+    { icon: 'edit-2', color: Colors.text, title: '3. MODIFICA UN TURNO (MATITA)', desc: 'Clicca sulla matita per correggere orari, luoghi o assegnatario, oppure usa il cestino per cancellare definitivamente il turno.' },
+    { icon: 'map', color: Colors.accent, title: '4. VEDI POSIZIONE LIVE', desc: 'Quando un turno è "IN CORSO" ( Turno in-corso = turno effettivamente iniziato o pronto ad iniziare ). Tramite il maps, sarà possibile vedere la posizione GPS esatta in tempo reale.' },
+    { icon: 'alert-triangle', color: '#ef4444', title: '5. ARRESTO EMERGENZA', desc: 'Chiude forzatamente un turno attivo che sta sforando o ha problemi.' },
+    { icon: 'check-circle', color: '#d97706', title: '6. LASCIA PASSARE 🔓', desc: 'In caso di problemi di connessione o altro, un turno accettato, che non riceve "il via", Può essere valida manualmente. P.S. Il pulsante appare solo se l\'orario è già iniziato.' },
+];
 
 export default function WelcomeModal({ visible, onClose, userRole }) {
     
 // DECIDIAMO QUALI DATI MOSTRARE
     let dataToShow = STEPS_COLLABORATOR; // Default
-    let titleText = "BENVENUTO NEL TEAM 👋";
+    let titleText = "BENVENUTO NEL TEAM";
     let subTitleText = "Guida rapida alle tue funzioni"; // Testo di default
 
     if (userRole === 'AMMINISTRATORE' || userRole === 'ADMIN') {
         dataToShow = STEPS_ADMIN;
-        titleText = "PANNELLO DI CONTROLLO 🛠️";
+        titleText = "PANNELLO DI CONTROLLO";
     } 
 // 🔥 CASO LEGENDA FOUNDER (Con il tuo testo sacro) 🔥
     else if (userRole === 'LEGEND_FOUNDER') {
         dataToShow = STEPS_LEGEND_FOUNDER; // <--- Nota il nome nuovo
-        titleText = "LEGENDA FOUNDER 👑";
+        titleText = "LEGENDA FOUNDER";
         subTitleText = "Controllo Totale (By Massimo)";
     }
     // Caso Founder (Usa gli step Admin ma con titolo da Re)
     else if (userRole === 'FOUNDER') {
         dataToShow = STEPS_ADMIN; 
-        titleText = "AMMINISTRAZIONE SUPREMA 👑";
+        titleText = "AMMINISTRAZIONE SUPREMA";
     }
 // 🔥 CASO LEGENDA ADMIN 🔥
     else if (userRole === 'LEGEND_ADMIN') {
         dataToShow = STEPS_LEGEND_ADMIN; // <--- Deve esserci scritto questo
-        titleText = "LEGENDA ADMIN 🛡️";
+        titleText = "LEGENDA ADMIN";
         subTitleText = "Strumenti Gestione Staff";
+    }
+    // --- LOGICA DI SELEZIONE ---
+    if (userRole === 'GESTORE_TURNI') { // <--- NUOVO CASO SPECIFICO
+        dataToShow = STEPS_SHIFT_MGMT;
+        titleText = "TORRE DI CONTROLLO";
+        subTitleText = "Gestione Operativa Turni";
     }
 
     return (

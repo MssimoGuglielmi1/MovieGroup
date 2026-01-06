@@ -199,7 +199,7 @@ export default function CamerinoStaff({ navigation }) {
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionHeader}>SICUREZZA 🔐</Text>
+                    <Text style={styles.sectionHeader}>CAMBIA PW 🔐</Text>
 
                     <EditableField
                         label="Nuova Password"

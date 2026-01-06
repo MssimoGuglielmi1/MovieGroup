@@ -1,6 +1,6 @@
 //AdminHome.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, ActivityIndicator, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { auth, db } from './firebaseConfig';
@@ -12,7 +12,7 @@ import WelcomeModal from './WelcomeModal'; // <--- AGGIUNGI QUESTO
 const Colors = {
     background: '#000000', surface: '#1C1C1E', primary: '#4CAF50', accent: '#0A84FF',
     textMain: '#FFFFFF', textSub: '#8E8E93', border: '#2C2C2E', error: '#FF453A',
-    cyan: '#00D1FF', warning: '#FFD700', purple: '#BF5AF2'
+    cyan: '#00D1FF', warning: '#FFD700', purple: '#BF5AF2', orange: '#F97316'
 };
 
 const ColorSchemes = {
@@ -54,6 +54,7 @@ export default function AdminHome({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
   const [showGuide, setShowGuide] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(null);
   
   // STATI DATI
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -66,7 +67,18 @@ export default function AdminHome({ navigation }) {
   const [shiftsCompleted, setShiftsCompleted] = useState([]);
 
   // STATO TOTALE (Per separare i miei da quelli degli altri)
-  const [allRawShifts, setAllRawShifts] = useState([]); 
+  const [allRawShifts, setAllRawShifts] = useState([]);
+  // --- STATO NOTIFICHE BACHECA ---
+  const [boardCount, setBoardCount] = useState(0);
+
+  useEffect(() => {
+      // Ascoltiamo la bacheca in tempo reale
+      const q = query(collection(db, "provisional_shifts"));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          setBoardCount(snapshot.size); // Conta quanti post ci sono
+      });
+      return unsubscribe;
+  }, []);
 
   // --- I MIEI TURNI PERSONALI (Filtro Pulito) ---
   // Mostra SOLO quelli attivi. Nasconde Rifiutati e Completati.
@@ -168,21 +180,55 @@ export default function AdminHome({ navigation }) {
       ]);
   };
 
-  const onStartShift = async (s) => {
+const onStartShift = async (s) => {
+      // 1. Controllo Orario
       const { start } = getSmartDates(s.date, s.startTime, s.endTime);
       const diff = (new Date() - start) / 1000 / 60;
-      if (diff < -60) { Alert.alert("Troppo Presto", "Manca più di un'ora all'inizio."); return; }
+      if (diff < -60) { 
+          Alert.alert("Troppo Presto", "Manca più di un'ora all'inizio."); 
+          return; 
+      }
+
+      // 2. Accendiamo la rotellina per QUESTO turno specifico
+      setGpsLoading(s.id); 
 
       try {
+          // 3. Chiediamo permessi GPS
           let { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') { Alert.alert("Serve GPS", "Abilita la posizione."); return; }
+          
+          // Se negato:
+          if (status !== 'granted') { 
+              Alert.alert(
+                  "GPS NECESSARIO ❌",
+                  "L'Admin deve dare il buon esempio! Abilita la posizione per timbrare.",
+                  [
+                      { text: "Annulla", style: "cancel" },
+                      { 
+                          text: "APRI IMPOSTAZIONI ⚙️", 
+                          onPress: () => Linking.openSettings() 
+                      }
+                  ]
+              );
+              setGpsLoading(null); // Spegniamo rotellina
+              return; 
+          }
+          
+          // 4. Prendiamo la posizione
           let loc = await Location.getCurrentPositionAsync({});
+          
+          // 5. Aggiorniamo il Database
           await updateDoc(doc(db, "shifts", s.id), { 
               status: 'in-corso', 
               realStartTime: new Date().toISOString(),
               startLocation: { latitude: loc.coords.latitude, longitude: loc.coords.longitude }
           });
-      } catch (e) { Alert.alert("Errore GPS", "Impossibile rilevare posizione."); }
+
+      } catch (e) { 
+          Alert.alert("Errore GPS", "Impossibile rilevare posizione."); 
+      } finally {
+          // 6. Spegniamo la rotellina SEMPRE, sia se va bene, sia se va male
+          setGpsLoading(null); 
+      }
   };
 
 // --- FIX BILINGUE: TERMINA TURNO ADMIN ---
@@ -355,7 +401,16 @@ export default function AdminHome({ navigation }) {
 
                     // CALCOLO ORARIO CHIUSURA
                     const { end: scheduledEnd } = getSmartDates(shift.date, shift.startTime, shift.endTime);
-                    // È presto se l'ora attuale è minore della fine prevista
+                    // --- CALCOLO PER BOTTONE GRIGIO/BLU ---
+// 1. Recuperiamo l'ora di inizio esatta
+                    const { start: scheduledStart } = getSmartDates(shift.date, shift.startTime, shift.endTime);
+// 2. Calcoliamo quanti minuti mancano (se negativo, mancano X minuti)
+                    const diffMinutes = (currentTime - scheduledStart) / 1000 / 60;
+// 3. Se mancano più di 60 minuti, è TROPPO PRESTO
+                    const isTooEarly = diffMinutes < -60;
+// 4. (Opzionale) Se hai aggiunto lo stato di caricamento GPS
+                    const isLoadingThisGPS = gpsLoading === shift.id; 
+// È presto se l'ora attuale è minore della fine prevista
                     const isTooEarlyToClose = currentTime < scheduledEnd;
 
                     return (
@@ -364,6 +419,16 @@ export default function AdminHome({ navigation }) {
                                 <View>
                                     <Text style={styles.cardTitle}>{shift.location}</Text>
                                     <Text style={styles.cardSubtitle}>📅 {shift.date} • ⏰ {shift.startTime} - {shift.endTime}</Text>
+                                    {/* --- INIZIO BLOCCO PAUSA --- */}
+                    {shift.hasBreak && (
+                        <View style={{flexDirection:'row', alignItems:'center', marginTop:3}}>
+                            <Feather name="coffee" size={12} color={CurrentColors.orange} />
+                            <Text style={{color: CurrentColors.orange, fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
+                                PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
+                            </Text>
+                        </View>
+                    )}
+                    {/* --- FINE BLOCCO PAUSA --- */}
                                 </View>
                                 <View style={{ backgroundColor: isWorking ? CurrentColors.primary : CurrentColors.surface, padding: 5, borderRadius: 5 }}>
                                     <Feather name={isWorking ? "activity" : "clock"} size={20} color={isWorking ? '#000' : CurrentColors.textSub} />
@@ -383,12 +448,33 @@ export default function AdminHome({ navigation }) {
                                         </TouchableOpacity>
                                     </>
                                 )}
-                                {isAccepted && (
-                                    <TouchableOpacity onPress={() => onStartShift(shift)} style={[styles.opBtn, { backgroundColor: CurrentColors.accent }]}>
-                                        <Text style={[styles.opBtnText, { color: '#FFF' }]}>SEGNA LA TUA POSIZIONE (GPS)</Text>
-                                    </TouchableOpacity>
-                                )}
-                                
+                                    {isAccepted && (
+    <TouchableOpacity 
+        onPress={() => onStartShift(shift)} 
+        // Disabilita se è troppo presto (o se sta caricando)
+        disabled={isTooEarly || (typeof gpsLoading !== 'undefined' && gpsLoading === shift.id)} 
+        style={[styles.opBtn, { 
+            // LOGICA COLORE:
+            // Grigio scuro (#4b5563) se è presto
+            // Blu (CurrentColors.accent) se è ora
+            backgroundColor: isTooEarly ? '#4b5563' : CurrentColors.accent,
+            
+            // BORDO (Solo estetico per il grigio)
+            borderColor: isTooEarly ? '#333' : 'transparent',
+            borderWidth: isTooEarly ? 1 : 0
+        }]}
+    >
+        {/* LOGICA TESTO */}
+        {(typeof gpsLoading !== 'undefined' && gpsLoading === shift.id) ? (
+            <ActivityIndicator size="small" color="#FFF" />
+        ) : (
+            <Text style={[styles.opBtnText, { color: isTooEarly ? '#aaa' : '#FFF' }]}>
+                {isTooEarly ? "NON ANCORA ATTIVO" : "SEGNA LA TUA POSIZIONE (GPS)"}
+            </Text>
+        )}
+    </TouchableOpacity>
+)}                          
+                     
 {/* TASTO TERMINA ADMIN (Sempre Attivo) */}
                                 {isWorking && (
                                     <TouchableOpacity 
@@ -419,49 +505,38 @@ export default function AdminHome({ navigation }) {
                         </View>
                     );
                 })}
-{/* --- BOTTONE BACHECA (IDENTICO A COLLABORATOR) --- */}
-      <TouchableOpacity
-        style={{
-          backgroundColor: '#1C1C1E', // Colore Surface ufficiale
-          borderRadius: 16,
-          padding: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 20, // Spazio dal tasto verde
-          marginTop: 10,    // Spazio dai widget
-          borderWidth: 1,
-          borderColor: '#BF5AF2' // Colore Purple ufficiale
-        }}
-        onPress={() => navigation.navigate('Board')}
-      >
-          <View style={{flexDirection:'row', alignItems:'center'}}>
-            {/* CERCHIO ICONA */}
-            <View style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(191, 90, 242, 0.2)' // Purple al 20% di opacità
-            }}>
-                <Feather name="radio" size={24} color="#BF5AF2" />
+{/* --- BOTTONE BACHECA CON NOTIFICA 🔴 --- */}
+        <TouchableOpacity
+            style={{
+                backgroundColor: '#1C1C1E', borderRadius: 16, padding: 16, flexDirection: 'row',
+                alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: 10,
+                borderWidth: 1, borderColor: '#BF5AF2'
+            }}
+            onPress={() => navigation.navigate('Board')} // O 'MostroRivoluzionario'
+        >
+            <View style={{flexDirection:'row', alignItems:'center'}}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(191, 90, 242, 0.2)' }}>
+                    <Feather name="radio" size={24} color="#BF5AF2" />
+                </View>
+                <View style={{marginLeft: 15}}>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                        <Text style={{fontSize: 16, fontWeight: 'bold', color: '#BF5AF2', marginBottom: 2}}>BACHECA TURNI</Text>
+                        
+                        {/* 🔴 PALLINO NOTIFICA (Se ci sono post) */}
+                        {boardCount > 0 && (
+                            <View style={{
+                                backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8,
+                                borderWidth: 1, borderColor: '#1C1C1E'
+                            }}>
+                                <Text style={{color: '#FFF', fontSize: 10, fontWeight: 'bold'}}>{boardCount} IN LISTA</Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={{fontSize: 12, color: '#8E8E93'}}>Proponiti per un turno, aggiungi una nota e crea.</Text>
+                </View>
             </View>
-
-            {/* TESTI */}
-            <View style={{marginLeft: 15}}>
-                <Text style={{fontSize: 16, fontWeight: 'bold', color: '#BF5AF2', marginBottom: 2}}>
-                    BACHECA TURNI
-                </Text>
-                <Text style={{fontSize: 12, color: '#8E8E93'}}>
-                    Proponiti per un turno, aggiungi una nota.
-                </Text>
-            </View>
-        </View>
-
-        {/* FRECCIA A DESTRA */}
-        <Feather name="chevron-right" size={24} color="#BF5AF2" />
-      </TouchableOpacity>
+            <Feather name="chevron-right" size={24} color="#BF5AF2" />
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.mainFab} onPress={handleCreateShift}>
           <Feather name="plus" size={24} color="#000" />

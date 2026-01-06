@@ -1,6 +1,6 @@
 //TurnoDimenticato.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator, Switch } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -12,7 +12,7 @@ const Colors = {
     background: '#000000', surface: '#1C1C1E', textPrimary: '#FFFFFF', textSecondary: '#8E8E93',
     primary: '#EAB308', // GIALLO SOS
     accent: '#0A84FF', error: '#FF453A', border: '#2C2C2E',
-    hidden: '#333'
+    hidden: '#333', orange: '#F97316'
 };
 
 export default function TurnoDimenticato({ navigation, route }) {
@@ -40,6 +40,12 @@ export default function TurnoDimenticato({ navigation, route }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showStartTimePicker, setShowStartTimePicker] = useState(false);
     const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+    // --- NUOVA GESTIONE PAUSA ⏸️ ---
+    const [hasBreak, setHasBreak] = useState(false);
+    const [breakStartTime, setBreakStartTime] = useState(new Date());
+    const [breakEndTime, setBreakEndTime] = useState(new Date(new Date().getTime() + 1800000)); // +30 min
+    const [showBreakStartPicker, setShowBreakStartPicker] = useState(false);
+    const [showBreakEndPicker, setShowBreakEndPicker] = useState(false);
 
     useEffect(() => {
         // 1. Dati Founder
@@ -143,6 +149,37 @@ export default function TurnoDimenticato({ navigation, route }) {
                 endObj.setDate(endObj.getDate() + 1);
             }
 
+            // 🛡️ BLOCCO SICUREZZA PAUSA (NUOVO)
+            if (hasBreak) {
+                // 1. Costruiamo le date complete per la pausa (così possiamo confrontarle)
+                let bStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakStartTime.getHours(), breakStartTime.getMinutes());
+                let bEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakEndTime.getHours(), breakEndTime.getMinutes());
+
+                // 2. Gestione notte interna alla pausa (es. pausa dalle 23:30 alle 00:30)
+                if (bEndObj < bStartObj) {
+                    bEndObj.setDate(bEndObj.getDate() + 1);
+                }
+                
+                // 3. Gestione notte rispetto al turno
+                // Se il turno scavalca la notte (es. 22:00 - 04:00)
+                if (startObj.getDate() !== endObj.getDate()) {
+                   // Se la pausa è "mattina presto" (es. 02:00) ma il turno è iniziato "ieri sera" (es. 22:00)
+                   // Allora dobbiamo spostare la pausa al "giorno dopo" per allinearla
+                   if (bStartObj.getHours() < 12 && startObj.getHours() > 12) {
+                       bStartObj.setDate(bStartObj.getDate() + 1);
+                       bEndObj.setDate(bEndObj.getDate() + 1);
+                   }
+                }
+
+                // 4. IL CONTROLLO FINALE 👮‍♂️
+                // La pausa inizia PRIMA del turno? OPPURE La pausa finisce DOPO il turno?
+                if (bStartObj < startObj || bEndObj > endObj) {
+                    showAlert("Errore Pausa ⚠️", "La pausa deve essere DENTRO l'orario di lavoro.\nEsempio: Se lavori 16-20, la pausa non può essere 15-16.");
+                    setLoading(false);
+                    return; // ⛔ STOP AL SALVATAGGIO
+                }
+            }
+
             // --- CICLO DI CREAZIONE ---
             const createPromises = selectedCollaborators.map(async (collabId) => {
                 const collabData = activeCollaborators.find(c => c.id === collabId);
@@ -157,9 +194,12 @@ export default function TurnoDimenticato({ navigation, route }) {
                     date: formatDate(date),
                     startTime: formatTime(startTime),
                     endTime: formatTime(endTime),
+                    hasBreak: hasBreak,
+                    breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
+                    breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
                     payoutRate: payoutRate, 
                     rateType: rateType,
-                    status: 'completato', // Nasce già completato (è un recupero!)
+                    status: 'completato',
                     realStartTime: startObj.toISOString(),
                     realEndTime: endObj.toISOString(),
                     createdBy: auth.currentUser.uid,
@@ -194,6 +234,9 @@ export default function TurnoDimenticato({ navigation, route }) {
     const onDateChange = (event, selectedDate) => { setShowDatePicker(false); if(selectedDate) setDate(selectedDate); };
     const onStartTimeChange = (event, selectedDate) => { setShowStartTimePicker(false); if(selectedDate) setStartTime(selectedDate); };
     const onEndTimeChange = (event, selectedDate) => { setShowEndTimePicker(false); if(selectedDate) setEndTime(selectedDate); };
+    // Callback Pausa
+    const onBreakStartChange = (event, selectedDate) => { setShowBreakStartPicker(false); if(selectedDate) setBreakStartTime(selectedDate); };
+    const onBreakEndChange = (event, selectedDate) => { setShowBreakEndPicker(false); if(selectedDate) setBreakEndTime(selectedDate); };
 
     // --- FIX PER WEB: Input Date/Time HTML ---
     const isWeb = Platform.OS === 'web';
@@ -323,6 +366,79 @@ export default function TurnoDimenticato({ navigation, route }) {
                             )}
                         </View>
                     </View>
+                </View>
+
+                                {/* --- SEZIONE 3: PAUSA ⏸️ (NUOVA) --- */}
+                <View style={[styles.sectionCard, {borderColor: Colors.orange}]}>
+                    <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                            <Feather name="coffee" size={18} color={Colors.orange} />
+                            <Text style={[styles.label, {color: Colors.orange, marginBottom:0, marginLeft:10}]}>PAUSA PRANZO / CENA</Text>
+                        </View>
+                        <Switch 
+                            value={hasBreak} 
+                            onValueChange={setHasBreak}
+                            trackColor={{ false: "#767577", true: Colors.orange }}
+                            thumbColor={hasBreak ? "#FFF" : "#f4f3f4"}
+                        />
+                    </View>
+
+                    {hasBreak && (
+                        <View style={{marginTop: 15}}>
+                            <View style={{height: 1, backgroundColor: Colors.border, marginBottom: 15}}/>
+                            <View style={{flexDirection:'row', gap:10}}>
+                                {/* INIZIO PAUSA */}
+                                <View style={{flex:1}}>
+                                    <Text style={[styles.label, {color:Colors.orange}]}>INIZIO PAUSA</Text>
+                                    {isWeb ? (
+                                        <input 
+                                            type="time"
+                                            value={formatTime(breakStartTime)}
+                                            onChange={(e) => {
+                                                const [h, m] = e.target.value.split(':');
+                                                const d = new Date(breakStartTime);
+                                                d.setHours(h); d.setMinutes(m);
+                                                setBreakStartTime(d);
+                                            }}
+                                            style={{...styles.webInput, borderColor: Colors.orange, backgroundColor: '#fff7ed'}}
+                                        />
+                                    ) : (
+                                        <>
+                                            <TouchableOpacity onPress={() => setShowBreakStartPicker(true)} style={[styles.timeButton, {borderColor: Colors.orange}]}>
+                                                <Text style={[styles.timeText, {color:Colors.orange}]}>{formatTime(breakStartTime)}</Text>
+                                            </TouchableOpacity>
+                                            {showBreakStartPicker && <DateTimePicker value={breakStartTime} mode="time" is24Hour={true} display="default" onChange={onBreakStartChange} />}
+                                        </>
+                                    )}
+                                </View>
+
+                                {/* FINE PAUSA */}
+                                <View style={{flex:1}}>
+                                    <Text style={[styles.label, {color:Colors.orange}]}>FINE PAUSA</Text>
+                                    {isWeb ? (
+                                        <input 
+                                            type="time"
+                                            value={formatTime(breakEndTime)}
+                                            onChange={(e) => {
+                                                const [h, m] = e.target.value.split(':');
+                                                const d = new Date(breakEndTime);
+                                                d.setHours(h); d.setMinutes(m);
+                                                setBreakEndTime(d);
+                                            }}
+                                            style={{...styles.webInput, borderColor: Colors.orange, backgroundColor: '#fff7ed'}}
+                                        />
+                                    ) : (
+                                        <>
+                                            <TouchableOpacity onPress={() => setShowBreakEndPicker(true)} style={[styles.timeButton, {borderColor: Colors.orange}]}>
+                                                <Text style={[styles.timeText, {color:Colors.orange}]}>{formatTime(breakEndTime)}</Text>
+                                            </TouchableOpacity>
+                                            {showBreakEndPicker && <DateTimePicker value={breakEndTime} mode="time" is24Hour={true} display="default" onChange={onBreakEndChange} />}
+                                        </>
+                                    )}
+                                </View>
+                            </View>
+                        </View>
+                    )}
                 </View>
 
                 <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={loading}>
