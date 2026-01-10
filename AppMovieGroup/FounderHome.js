@@ -1,20 +1,6 @@
 //FounderHome.js
 import React, { useState, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Alert,
-  Platform,
-  StatusBar,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  Dimensions
-} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, Modal, TextInput, ActivityIndicator, Dimensions,} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
