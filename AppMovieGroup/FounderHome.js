@@ -84,10 +84,14 @@ export default function FounderHome({ navigation }) {
   const [shiftsPending, setShiftsPending] = useState([]);
   const [shiftsActive, setShiftsActive] = useState([]);
   const [shiftsCompleted, setShiftsCompleted] = useState([]);
+  const [adminPassword, setAdminPassword] = useState('');
 
   // --- STATI BANCA ---
   const [modalVisible, setModalVisible] = useState(false);
   const [globalRate, setGlobalRate] = useState('');
+  // STATI SICUREZZA MODIFICA 🔒
+  const [isEditingRate, setIsEditingRate] = useState(false); // Tariffa bloccata
+  const [isEditingPass, setIsEditingPass] = useState(false); // Password bloccata
   // Nota: Lo stato c'è ma lo forziamo nel salvataggio a 'minute'
   const [globalType, setGlobalType] = useState('minute'); 
   const [savingSettings, setSavingSettings] = useState(false);
@@ -190,6 +194,7 @@ const unsub4 = onSnapshot(activeShiftsQuery, (s) => {
           const docSnap = await getDoc(doc(db, "settings", "globalConfig"));
           if(docSnap.exists()) {
               setGlobalRate(docSnap.data().defaultRate || '');
+              setAdminPassword(data.adminPassword || '');
           }
           setModalVisible(true);
       } catch(e) { setModalVisible(true); } finally { setSavingSettings(false); }
@@ -201,9 +206,10 @@ const unsub4 = onSnapshot(activeShiftsQuery, (s) => {
       try {
           await setDoc(doc(db, "settings", "globalConfig"), {
               defaultRate: globalRate.replace(',', '.'),
-              defaultType: 'minute' // <--- FORZIAMO 'minute'
+              defaultType: 'minute', // <--- FORZIAMO 'minute'
+              adminPassword: adminPassword
           });
-          Alert.alert("Salvato", "Tariffa al minuto aggiornata.");
+          Alert.alert("Salvato", "Configurazione aggiornata con successo!");
           setModalVisible(false);
       } catch(e) { Alert.alert("Errore", e.message); }
       setSavingSettings(false);
@@ -375,7 +381,7 @@ return (
                             <View style={{
                                 backgroundColor: Colors.accentPurple, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8
                             }}>
-                                <Text style={{color: '#FFF', fontSize: 10, fontWeight: 'bold'}}>🔔 {totalReactions} RISPOSTE</Text>
+                                <Text style={{color: '#FFF', fontSize: 10, fontWeight: 'bold'}}>🔔 {totalReactions} </Text>
                             </View>
                         )}
                     </View>
@@ -458,21 +464,93 @@ return (
         <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
             <View style={styles(Colors).modalOverlay}>
                 <View style={styles(Colors).modalContent}>
-                    <Text style={styles(Colors).modalTitle}>BANCA CENTRALE</Text>
-                    <Text style={styles(Colors).modalSub}>Configurazione dei pagamenti.</Text>
+                    <Text style={styles(Colors).modalTitle}>IMPOSTAZIONI</Text>
+                    <Text style={styles(Colors).modalSub}>CONFIGURA o CAMBIA un valore EURO e una CHIAVE DI ACCESSO ADMIN.</Text>
 
-                    <Text style={{color: Colors.textFaded, marginTop:20, fontSize:12, fontWeight:'bold'}}>IMPORTO AL MINUTO (€)</Text>
-                    <TextInput 
-                        style={styles(Colors).input} 
-                        keyboardType="decimal-pad" 
-                        value={globalRate} 
-                        onChangeText={setGlobalRate} 
-                        placeholder="0.13" 
-                        placeholderTextColor={Colors.textFaded} 
-                    />
+{/* INPUT TARIFFA CON SICURA 🔒 */}
+                    <Text style={{color: Colors.textFaded, marginTop:20, fontSize:12, fontWeight:'bold'}}>COSTI AL MINUTO (€)</Text>
+                    
+                    <View style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        backgroundColor: isEditingRate ? Colors.background : Colors.surface, // Scuro se attivo, chiaro se bloccato
+                        borderRadius: 10, borderWidth: 1, 
+                        borderColor: isEditingRate ? Colors.accentGreen : Colors.divider,
+                        marginTop: 5
+                    }}>
+                        <TextInput 
+                            style={[styles(Colors).input, {
+                                flex: 1, borderWidth: 0, 
+                                color: isEditingRate ? Colors.textPrimary : Colors.textFaded, // Grigio se bloccato
+                                opacity: isEditingRate ? 1 : 0.5
+                            }]} 
+                            keyboardType="decimal-pad" 
+                            value={globalRate} 
+                            onChangeText={setGlobalRate} 
+                            placeholder="0.10" 
+                            placeholderTextColor={Colors.textFaded}
+                            editable={isEditingRate} // <--- QUI LA MAGIA
+                        />
+                        
+                        {/* BOTTONE SBLOCCO */}
+                        <TouchableOpacity 
+                            onPress={() => setIsEditingRate(!isEditingRate)}
+                            style={{padding: 15, borderLeftWidth: 1, borderLeftColor: Colors.divider}}
+                        >
+                            <Feather 
+                                name={isEditingRate ? "unlock" : "lock"} 
+                                size={20} 
+                                color={isEditingRate ? Colors.accentGreen : Colors.textFaded} 
+                            />
+                        </TouchableOpacity>
+                    </View>
                     
                     {/* QUI APPARE L'ANTEPRIMA DINAMICA */}
                     {getRatePreview()}
+{/* INPUT PASSWORD CON SICURA 🔒 */}
+                    <View style={{marginTop: 25, width: '100%'}}>
+                        <Text style={{color: Colors.textFaded, fontSize: 12, fontWeight: 'bold', marginBottom: 8, textTransform:'uppercase'}}>
+                            🔐 CHIAVE DI SBLOCCO ADMIN
+                        </Text>
+                        <View style={{
+                            flexDirection:'row', alignItems:'center', 
+                            backgroundColor: isEditingPass ? Colors.background : Colors.surface, 
+                            borderRadius: 10, borderWidth: 1, 
+                            borderColor: isEditingPass ? Colors.accentPurple : Colors.divider
+                        }}>
+                            <Feather name="key" size={20} color={isEditingPass ? Colors.accentPurple : Colors.textFaded} style={{marginLeft: 15}} />
+                            
+                            <TextInput 
+                                style={{
+                                    flex:1, color: isEditingPass ? Colors.textPrimary : Colors.textFaded, 
+                                    padding: 15, fontSize: 18, fontWeight:'bold', letterSpacing: 2,
+                                    opacity: isEditingPass ? 1 : 0.5
+                                }}
+                                placeholder="Es. 1234"
+                                placeholderTextColor={Colors.textFaded}
+                                value={adminPassword}
+                                onChangeText={setAdminPassword}
+                                keyboardType="numeric"
+                                maxLength={10}
+                                editable={isEditingPass} // <--- SOLO SE SBLOCCATO
+                            />
+
+                            {/* BOTTONE SBLOCCO */}
+                            <TouchableOpacity 
+                                onPress={() => setIsEditingPass(!isEditingPass)}
+                                style={{padding: 15, borderLeftWidth: 1, borderLeftColor: Colors.divider}}
+                            >
+                                <Feather 
+                                    name={isEditingPass ? "unlock" : "lock"} 
+                                    size={20} 
+                                    color={isEditingPass ? Colors.accentPurple : Colors.textFaded} 
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    
+                        <Text style={{color: Colors.textFaded, fontSize: 10, marginTop: 5, fontStyle:'italic'}}>
+                            Questo chiave d'uso servirà agli Admin per sbloccare l'app, solo dopo aver affettuato il login.
+                        </Text>
+                    </View>
 
                     <Text style={{color: Colors.textFaded, marginTop:25, marginBottom:10, fontSize:12, fontWeight:'bold'}}>METODO</Text>
 
@@ -485,14 +563,14 @@ return (
                         borderWidth: 1, 
                         borderColor: Colors.accentPurple
                     }}>
-                        <Text style={{color: Colors.accentPurple, fontWeight: 'bold', fontSize: 16}}>AL MINUTO ⏱️</Text>
-                        <Text style={{color: Colors.textFaded, fontSize: 10, marginTop: 4}}>Configurazione bloccata.</Text>
+                        <Text style={{color: Colors.accentPurple, fontWeight: 'bold', fontSize: 16}}>IL TUO ATTUALE COSTO AL MINUTO, CLICCA QUI PER APRIRE LA CALCOLATRICE ⏱️</Text>
+                        <Text style={{color: Colors.textFaded, fontSize: 10, marginTop: 4}}>UNA CALCOLATRICE A PORTATA DI MANO.</Text>
                     </View>
 
                     <TouchableOpacity style={styles(Colors).saveBtn} onPress={saveGlobalSettings} disabled={savingSettings}>
                         {savingSettings ? <ActivityIndicator color="#FFF"/> : <Text style={{color:'#FFF', fontWeight:'bold'}}>SALVA IMPOSTAZIONI</Text>}
                     </TouchableOpacity>
-                    <TouchableOpacity style={{marginTop:15, alignItems:'center'}} onPress={()=>setModalVisible(false)}><Text style={{color: Colors.accentRed}}>Chiudi</Text></TouchableOpacity>
+                    <TouchableOpacity style={{marginTop:15, alignItems:'center'}} onPress={()=>setModalVisible(false)}><Text style={{color: Colors.accentRed}}>CHIUDI</Text></TouchableOpacity>
                 </View>
             </View>
         </Modal>

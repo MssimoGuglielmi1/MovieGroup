@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Pla
 import { Feather } from '@expo/vector-icons';
 import { db } from './firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { generatePDF } from './CreatorePDF';
+import { generatePDF } from './CreatorePDF'; // <--- Ora useremo il nuovo parametro
 import { Picker } from '@react-native-picker/picker';
 
 import * as FileSystem from 'expo-file-system';
@@ -38,49 +38,55 @@ export default function PDFDelFounder({ navigation }) {
         fetchStaff();
     }, []);
 
-// --- MOTORE EXCEL (.xlsx) - VERSIONE IBRIDA (WEB + APP) ---
-    const generateExcel = async (title, data) => {
+// --- MOTORE EXCEL (.xlsx) ---
+    const generateExcel = async (title, data, type) => {
         try {
-            // 1. Mappiamo i dati per Excel (Colonne pulite)
-            const excelData = data.map(item => ({
-                DATA: item.date || "---",
-                LUOGO: item.location || "---",
-                COLLABORATORE: item.collaboratorName || "N/D",
-                RUOLO: item.collaboratorRole || "---",
-                INIZIO: item.startTime || "---",
-                FINE: item.endTime || "---",
-                STATO: item.status ? item.status.toUpperCase() : "---",
-                IMPORTO: item.payoutRate ? `€ ${item.payoutRate}` : "---",
-                ASSEGNATO_DA: item.creatorName || "---"
-            }));
+            let excelData = [];
 
-            // 2. Creiamo il foglio
+            if (type === 'AUDIT') {
+                // EXCEL SPECIFICO PER AUDIT (SOLO CHI HA FATTO COSA)
+                excelData = data.map(item => ({
+                    DATA_CREAZIONE: item.createdAt ? new Date(item.createdAt).toLocaleString('it-IT') : "N/D",
+                    CHI_HA_ASSEGNATO: item.creatorName || "Sistema/Founder",
+                    ASSEGNATO_A: item.collaboratorName || "N/D",
+                    LUOGO: item.location || "---",
+                    DATA_TURNO: item.date || "---",
+                    ORARIO: `${item.startTime} - ${item.endTime}`
+                }));
+            } else {
+                // EXCEL STANDARD (SOLDI E ORE)
+                excelData = data.map(item => ({
+                    DATA: item.date || "---",
+                    LUOGO: item.location || "---",
+                    COLLABORATORE: item.collaboratorName || "N/D",
+                    RUOLO: item.collaboratorRole || "---",
+                    INIZIO: item.startTime || "---",
+                    FINE: item.endTime || "---",
+                    STATO: item.status ? item.status.toUpperCase() : "---",
+                    IMPORTO: item.payoutRate ? `€ ${item.payoutRate}` : "---",
+                    ASSEGNATO_DA: item.creatorName || "---"
+                }));
+            }
+
             const ws = XLSX.utils.json_to_sheet(excelData);
+            
+            // Larghezza colonne dinamica
+            if (type === 'AUDIT') {
+                ws['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 15 }];
+            } else {
+                ws['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }];
+            }
 
-            // Larghezza colonne
-            ws['!cols'] = [
-                { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
-                { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }
-            ];
-
-            // 3. Creiamo il file (WorkBook)
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Report");
 
-            // --- 4. BIVIO: WEB O TELEFONO? ---
             if (Platform.OS === 'web') {
-                // --- VERSIONE WEB (PC) ---
-                // Scrive e scarica direttamente il file nel browser
                 XLSX.writeFile(wb, `${title}.xlsx`);
-                // (Su web non serve alert, il download parte da solo)
             } else {
-                // --- VERSIONE APP (IOS/ANDROID) ---
                 const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
                 const fileName = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
                 const uri = FileSystem.documentDirectory + fileName;
-
                 await FileSystem.writeAsStringAsync(uri, wbout, { encoding: FileSystem.EncodingType.Base64 });
-
                 if (await Sharing.isAvailableAsync()) {
                     await Sharing.shareAsync(uri);
                 } else {
@@ -90,14 +96,12 @@ export default function PDFDelFounder({ navigation }) {
 
         } catch (e) {
             console.error("Errore Excel:", e);
-            if (Platform.OS === 'web') alert("Errore Excel: " + e.message);
-            else Alert.alert("Errore Excel", e.message);
+            Alert.alert("Errore Excel", e.message);
         }
     };
     
-// --- FUNZIONE UNICA DI DOWNLOAD (PDF + EXCEL) ---
+// --- FUNZIONE UNICA DI DOWNLOAD ---
     const handleDownload = async (type, format) => {
-        // Controlli preliminari
         if (type === 'INDIVIDUAL' && !selectedUser) { 
             Alert.alert("Attenzione", "Seleziona una persona dal menu."); 
             return; 
@@ -105,15 +109,9 @@ export default function PDFDelFounder({ navigation }) {
 
         setLoading(true);
         try {
-            const today = new Date();
-            const pastDate = new Date();
-            pastDate.setDate(today.getDate() - 60);
-            const pastDateStr = pastDate.toISOString().split('T')[0];
-
             let q;
             let title = "";
             
-            // A. COSTRUIAMO LA QUERY IN BASE AL TIPO
             if (type === 'INDIVIDUAL') {
                 const userObj = users.find(u => u.id === selectedUser);
                 const userName = userObj ? `${userObj.firstName} ${userObj.lastName}` : "Utente";
@@ -123,7 +121,6 @@ export default function PDFDelFounder({ navigation }) {
                     collection(db, "shifts"),
                     where("collaboratorId", "==", selectedUser),
                     where("status", "==", "completato"),
-                    where("date", ">=", pastDateStr)
                 );
             } 
             else if (type === 'FULL') {
@@ -131,23 +128,27 @@ export default function PDFDelFounder({ navigation }) {
                 q = query(
                     collection(db, "shifts"), 
                     where("status", "==", "completato"), 
-                    where("date", ">=", pastDateStr)
                 );
             } 
             else if (type === 'AUDIT') {
                 title = "AUDIT_ASSEGNAZIONI";
+                // Per l'Audit prendiamo TUTTO (non solo completati) e anche recenti
                 q = query(
                     collection(db, "shifts"), 
-                    where("date", ">=", pastDateStr)
                 );
             }
 
-            // B. SCARICHIAMO I DATI
             const snapshot = await getDocs(q);
             let finalData = snapshot.docs.map(doc => doc.data());
 
-            // C. ORDINAMENTO (Dal più recente)
-            finalData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            // Ordinamento
+            if (type === 'AUDIT') {
+                // Per Audit ordina per DATA CREAZIONE (il momento del click)
+                finalData.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+            } else {
+                // Per report finanziari ordina per DATA TURNO
+                finalData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
 
             if (finalData.length === 0) { 
                 Alert.alert("Vuoto", "Nessun dato trovato per il periodo selezionato."); 
@@ -155,15 +156,12 @@ export default function PDFDelFounder({ navigation }) {
                 return; 
             }
 
-            // D. BIVIO: PDF O EXCEL?
             if (format === 'PDF') {
-                // Per il PDF serve un titolo "umano"
                 const humanTitle = title.replace(/_/g, ' '); 
-                // Audit usa un layout leggermente diverso (false come terzo parametro se vuoi)
-                await generatePDF(humanTitle, finalData, type !== 'AUDIT'); 
+                // 🔥 MODIFICA CRUCIALE: Passiamo "type" (es: 'AUDIT') invece di booleano
+                await generatePDF(humanTitle, finalData, type); 
             } else {
-                // Excel
-                await generateExcel(title, finalData);
+                await generateExcel(title, finalData, type);
             }
 
         } catch (e) {
@@ -173,7 +171,7 @@ export default function PDFDelFounder({ navigation }) {
         }
     };
 
-return (
+    return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" />
             <View style={styles.header}>
@@ -216,14 +214,10 @@ return (
                         )}
                     </View>
 
-                        {/* BOTTONI REPORT SINGOLO */}
                     <View style={{flexDirection:'row', gap:10}}>
-                        {/* PDF -> AZZURRO */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.accentCyan, flex:1}]} onPress={() => handleDownload('INDIVIDUAL', 'PDF')} disabled={loading || !selectedUser}>
                             {loading ? <ActivityIndicator color="#000"/> : <Text style={styles.btnText}>📄 PDF</Text>}
                         </TouchableOpacity>
-                        
-                        {/* EXCEL -> VERDE NUOVO */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.excelGreen, flex:1}]} onPress={() => handleDownload('INDIVIDUAL', 'EXCEL')} disabled={loading || !selectedUser}>
                             <Text style={[styles.btnText, {color:'#FFF'}]}>📊 EXCEL</Text>
                         </TouchableOpacity>
@@ -238,36 +232,28 @@ return (
                     </View>
                     <Text style={styles.cardDesc}>Un unico documento con i turni di tutto lo staff completati negli ultimi 60 giorni.</Text>
                     
-                {/* BOTTONI REPORT TOTALE */}
                     <View style={{flexDirection:'row', gap:10}}>
-                        {/* PDF -> AZZURRO (Uniformato) */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.accentCyan, flex:1}]} onPress={() => handleDownload('FULL', 'PDF')} disabled={loading}>
                             {loading ? <ActivityIndicator color="#FFF"/> : <Text style={[styles.btnText, {color:'#000'}]}>📄 PDF</Text>}
                         </TouchableOpacity>
-
-                        {/* EXCEL -> VERDE NUOVO */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.excelGreen, flex:1}]} onPress={() => handleDownload('FULL', 'EXCEL')} disabled={loading}>
                             <Text style={[styles.btnText, {color:'#FFF'}]}>📊 EXCEL</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* 3. AUDIT ASSEGNAZIONI */}
+                {/* 3. AUDIT ASSEGNAZIONI (REGISTRO POLIZIA) */}
                 <View style={[styles.card, {borderColor: Colors.accentPurple}]}>
                     <View style={styles.cardHeader}>
                         <Feather name="eye" size={24} color={Colors.accentPurple} />
                         <Text style={[styles.cardTitle, {color: Colors.accentPurple}]}>LOG ASSEGNAZIONI</Text>
                     </View>
-                    <Text style={styles.cardDesc}>Registro completo di chi ha assegnato i turni, quando e a chi.</Text>
+                    <Text style={styles.cardDesc}>Registro di controllo: Chi ha creato i turni, quando e a chi sono stati assegnati.</Text>
                     
-                {/* BOTTONI AUDIT */}
                     <View style={{flexDirection:'row', gap:10}}>
-                        {/* PDF -> AZZURRO (Uniformato) */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.accentCyan, flex:1}]} onPress={() => handleDownload('AUDIT', 'PDF')} disabled={loading}>
                             {loading ? <ActivityIndicator color="#FFF"/> : <Text style={[styles.btnText, {color:'#000'}]}>📄 PDF</Text>}
                         </TouchableOpacity>
-
-                        {/* EXCEL -> VERDE NUOVO */}
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.excelGreen, flex:1}]} onPress={() => handleDownload('AUDIT', 'EXCEL')} disabled={loading}>
                             <Text style={[styles.btnText, {color:'#FFF'}]}>📊 EXCEL</Text>
                         </TouchableOpacity>

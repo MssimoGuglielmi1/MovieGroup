@@ -19,17 +19,10 @@ export default function CollaboratorHistoryScreen({ onBack }) {
         const user = auth.currentUser;
         if (!user) return;
 
-        // FILTRO: Solo i miei turni completati (ultimi 30 giorni per velocità)
-        const today = new Date();
-        const pastDate = new Date();
-        pastDate.setDate(today.getDate() - 60);
-        const pastDateStr = pastDate.toISOString().split('T')[0];
-
         const q = query(
             collection(db, "shifts"),
             where("collaboratorId", "==", user.uid),
             where("status", "==", "completato"),
-            where("date", ">=", pastDateStr)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {

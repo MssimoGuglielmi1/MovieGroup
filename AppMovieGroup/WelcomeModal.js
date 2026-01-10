@@ -152,6 +152,34 @@ const STEPS_SHIFT_MGMT = [
     { icon: 'check-circle', color: '#d97706', title: '6. LASCIA PASSARE 🔓', desc: 'In caso di problemi di connessione o altro, un turno accettato, che non riceve "il via", Può essere valida manualmente. P.S. Il pulsante appare solo se l\'orario è già iniziato.' },
 ];
 
+// --- 5. GUIDA COSTI AZIENDALI (FOUNDER) 🔥 NUOVO! ---
+const STEPS_COSTI_FOUNDER = [
+    { 
+        icon: 'search', 
+        color: Colors.text, 
+        title: '1. RICERCA TATTICA', 
+        desc: 'Usa la barra di ricerca in alto. Scrivi "2026-01" per vedere solo Gennaio, oppure scrivi il NOME di un dipendente per filtrare solo i suoi turni.' 
+    },
+    { 
+        icon: 'check-circle', 
+        color: Colors.text, 
+        title: '2. TASTO SELEZIONA', 
+        desc: 'Tocca "SELEZIONA" in alto a destra. Ora puoi toccare tanti turni per evidenziarli (diventano rossi). Utile per pulire mesi interi.' 
+    },
+    { 
+        icon: 'trash-2', 
+        color: Colors.error, 
+        title: '3. PULIZIA TOTALE (CESTINO)', 
+        desc: 'Dopo aver fatto una multi selezione, puoi passare a cestinare (come in voce 4.). Quando cestini i selezionati li DISTRUGGI dal database di firestore in maniera, quando distruggi le voci selezionate da firestore automaticamente le distruggi dal: PDF (COMPRE LO ASSEGNAZONE DI QUEL TURNO), dal TUO STORICO di "GESTIONE TURNI", dallo STORICO TURNI AMMINISTRATORE E dallo STORICO DEL COLLABORATORE. PER QUALSIASI DUBBIO CHIEDIMI'
+    },
+    { 
+        icon: 'trash', 
+        color: Colors.error, 
+        title: '4. CANCELLAZIONE SINGOLA', 
+        desc: 'Se non vuoi usare la multi selezione, puoi tenere premuto a lungo (2 secondi) su un singolo turno per eliminarlo al volo, leliminazione agisce sempre sul database firestore. PER QUALSIASI DOMANDA CHIEDIMI.' 
+    },
+];
+
 export default function WelcomeModal({ visible, onClose, userRole }) {
     
 // DECIDIAMO QUALI DATI MOSTRARE
@@ -185,6 +213,13 @@ export default function WelcomeModal({ visible, onClose, userRole }) {
         dataToShow = STEPS_SHIFT_MGMT;
         titleText = "TORRE DI CONTROLLO";
         subTitleText = "Gestione Operativa Turni";
+    }
+
+    // --- NUOVO CASO PER I COSTI ---
+    if (userRole === 'COSTI_FOUNDER') {
+        dataToShow = STEPS_COSTI_FOUNDER;
+        titleText = "GESTIONE STORICO GLOBALE";
+        subTitleText = "Strumenti di Pulizia e Controllo";
     }
 
     return (

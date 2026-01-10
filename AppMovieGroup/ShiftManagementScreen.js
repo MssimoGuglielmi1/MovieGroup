@@ -53,15 +53,9 @@ export default function ShiftManagementScreen({ navigation }) {
     }, []);
 
     useEffect(() => {
-        // --- FILTRO PRESTAZIONI (ULTIMI 30 GIORNI) ---
-        const today = new Date();
-        const pastDate = new Date();
-        pastDate.setDate(today.getDate() - 60);
-        const pastDateStr = pastDate.toISOString().split('T')[0];
 
         const q = query(
             collection(db, "shifts"),
-            where("date", ">=", pastDateStr) // Carica solo roba recente
         );
 
 const unsubscribe = onSnapshot(q, (snapshot) => {

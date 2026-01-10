@@ -1,12 +1,14 @@
 //AdminHome.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, ActivityIndicator, Linking, Modal, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { auth, db } from './firebaseConfig';
 import { collection, query, where, doc, updateDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import * as Location from 'expo-location'; // IMPORTANTE: Serve per il GPS dell'Admin
 import WelcomeModal from './WelcomeModal'; // <--- AGGIUNGI QUESTO
+
+let SESSION_IS_UNLOCKED = false;
 
 // --- 1. MOTORE COLORI ---
 const Colors = {
@@ -27,6 +29,44 @@ const ColorSchemes = {
 export default function AdminHome({ navigation }) {
   // --- STATO AVVISO PROFILO ---
   const [showProfileWarning, setShowProfileWarning] = useState(false);
+  // --- STATI SICUREZZA (IL MURO) 🔒 ---
+  const [isLocked, setIsLocked] = useState(true); // Nasce VERO, cioè bloccato
+  const [securityKey, setSecurityKey] = useState(''); // Quello che scrive l'Admin
+  const [realKey, setRealKey] = useState(null); // La password vera scaricata dal DB
+  const [keyLoading, setKeyLoading] = useState(true); // Sto caricando?
+  const [errorMsg, setErrorMsg] = useState(''); // Messaggio di errore
+
+  // --- 1. CARICAMENTO CHIAVE DI SICUREZZA ---
+  useEffect(() => {
+    const fetchSecurityConfig = async () => {
+        // 🔴 PRIMA COSA: Controllo se abbiamo già sbloccato in questa sessione
+        if (SESSION_IS_UNLOCKED) {
+            setIsLocked(false);
+            setKeyLoading(false);
+            return; // Esco subito, sei libero
+        }
+
+        try {
+            const docSnap = await getDoc(doc(db, "settings", "globalConfig"));
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.adminPassword) {
+                    setRealKey(data.adminPassword);
+                    // isLocked nasce già true, quindi resta bloccato
+                } else {
+                    setIsLocked(false); 
+                }
+            } else {
+                setIsLocked(false); 
+            }
+        } catch (e) {
+            console.log("Errore Security:", e);
+        } finally {
+            setKeyLoading(false);
+        }
+    };
+    fetchSecurityConfig();
+  }, []); // Le parentesi quadre vuote assicurano che giri solo al caricamento
 
   useEffect(() => {
     const checkAdminData = async () => {
@@ -305,6 +345,10 @@ const onStartShift = async (s) => {
 
   // --- AZIONI NORMALI ADMIN ---
   const handleLogout = () => {
+    const doLogout = () => {
+        SESSION_IS_UNLOCKED = false; // <--- 🔴 AGGIUNTA: Se esci, resetto la protezione
+        signOut(auth);
+    };
     if (Platform.OS === 'web') {
         if (confirm("Logout: Vuoi uscire?")) signOut(auth);
     } else {
@@ -339,11 +383,63 @@ const onStartShift = async (s) => {
     </TouchableOpacity>
   );
 
+// --- FUNZIONE SBLOCCO ---
+  const handleUnlock = () => {
+      if (securityKey === realKey) {
+          setIsLocked(false); 
+          SESSION_IS_UNLOCKED = true; // <--- 🔴 AGGIUNTA: Memorizzo che hai sbloccato
+          setErrorMsg('');
+      } else {
+          setErrorMsg('CODICE ERRATO ⛔');
+          setSecurityKey(''); 
+      }
+  };
+
   if (loading) return <View style={[styles.safeArea, {justifyContent:'center', alignItems:'center'}]}><ActivityIndicator color={CurrentColors.primary} size="large"/></View>;
 
   return (
+    
     <SafeAreaView style={[styles.safeArea, { backgroundColor: CurrentColors.background }]}>
       <StatusBar barStyle={theme === 'dark' ? "light-content" : "dark-content"} backgroundColor={CurrentColors.background} />
+
+      {/* --- MURO DI SICUREZZA 🔒 --- */}
+      <Modal visible={isLocked} animationType="fade" transparent={false}>
+          <View style={{flex:1, backgroundColor: '#000000', justifyContent:'center', alignItems:'center', padding: 20}}>
+              
+              {/* Icona Lucchetto */}
+              <Feather name="lock" size={60} color="#BF5AF2" style={{marginBottom: 20}} />
+              
+              <Text style={{color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 10}}>ACCESSO LIMITATO</Text>
+              
+              {/* Input Codice */}
+              <TextInput 
+                  style={{
+                      backgroundColor: '#1C1C1E', color: '#FFF', fontSize: 32, fontWeight: 'bold', 
+                      textAlign: 'center', letterSpacing: 8, width: '80%', padding: 20, 
+                      borderRadius: 12, borderWidth: 1, borderColor: errorMsg ? '#FF453A' : '#333'
+                  }}
+                  placeholder="CODE"
+                  placeholderTextColor="#333"
+                  secureTextEntry={true} // Nasconde i numeri
+                  keyboardType="numeric"
+                  maxLength={6}
+                  value={securityKey}
+                  onChangeText={(t) => { setSecurityKey(t); setErrorMsg(''); }}
+              />
+              
+              {/* Messaggio Errore */}
+              {errorMsg ? <Text style={{color: '#FF453A', marginTop: 15, fontWeight:'bold'}}>{errorMsg}</Text> : null}
+
+              {/* Tasto Sblocca */}
+              <TouchableOpacity 
+                  onPress={handleUnlock}
+                  style={{backgroundColor: '#BF5AF2', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 30, marginTop: 40, width:'80%', alignItems:'center'}}
+              >
+                  <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>SBLOCCA 🔓</Text>
+              </TouchableOpacity>
+
+          </View>
+      </Modal>
       
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={goToProfile} style={styles.headerLeft}> 
