@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "AppMovieGroup",
+    "name": "MovieGroup",
     "slug": "AppMovieGroup",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,13 +20,19 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.massimoguglie.moviegroup"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "145fd7f7-9ce8-48dd-8926-21b5c9ec1af3"
+      }
+    }
   }
 }
