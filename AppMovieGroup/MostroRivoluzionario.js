@@ -1,5 +1,5 @@
 //MostroRivoluzionario.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert, Platform, KeyboardAvoidingView, Switch, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
@@ -146,7 +146,7 @@ export default function MostroRivoluzionario({ navigation }) {
     
     // --- STATI FISARMONICA & CREAZIONE ---
     const [isCreatorOpen, setIsCreatorOpen] = useState(false); // Default CHIUSO
-    
+    const listRef = useRef(null); // <--- REF PER SCROLLARE IN CIMA
     // Campi Creazione
     const [newDate, setNewDate] = useState('');
     const [newStartTime, setNewStartTime] = useState('');
@@ -229,6 +229,11 @@ export default function MostroRivoluzionario({ navigation }) {
                     createdAt: new Date(),
                     availabilities: {} 
                 });
+                // C. AGGIORNA BACHECA: CAMBIA LO STATUS IN 'ASSIGNED' (IL PUNTO CRUCIALE 🚨)
+                // Questo fa sparire il candidato dalla lista visiva perché il filtro accetta solo 'YES'
+                await updateDoc(doc(db, "provisional_shifts", shiftPost.id), {
+                    [`availabilities.${targetUserId}.status`]: 'ASSIGNED' 
+                });
                 await notifyAllUsers("Nuovo Avviso in Bacheca", `Nuova previsione per il ${newDate} a ${newLocation}. Controlla ora.`);
                 const msg = "Pubblicato.";
                 Platform.OS === 'web' ? alert(msg) : Alert.alert("Pubblicato", "La richiesta è online.");
@@ -240,69 +245,80 @@ export default function MostroRivoluzionario({ navigation }) {
         setLoading(false);
     };
 
-    // --- 2. ASSEGNAZIONE AUTOMATICA (PROFESSIONAL) ---
+// --- 2. ASSEGNAZIONE AUTOMATICA (FIX PER FANTASMA + iOS) ---
     const handleInstantAssign = async (shiftPost, targetUserId, targetUserName) => {
-        Alert.alert(
-            "Conferma Assegnazione",
-            `Vuoi creare il turno reale per ${targetUserName}?\nUserà i dati della bacheca e la tariffa standard.`,
-            [
+        const title = "Conferma Assegnazione";
+        const message = `Vuoi creare il turno reale per ${targetUserName}?\nUserà i dati della bacheca e la tariffa standard.`;
+
+        // Funzione core di assegnazione
+        const executeAssignment = async () => {
+            try {
+                setLoading(true);
+                
+                // A. Recupera Configurazione (Prezzi standard)
+                const configSnap = await getDoc(doc(db, "settings", "globalConfig"));
+                let defaultRate = "0.10";
+                let defaultType = "minute";
+                if (configSnap.exists()) {
+                    defaultRate = configSnap.data().defaultRate || "0.10";
+                    defaultType = configSnap.data().defaultType || "minute";
+                }
+
+                // B. Crea il Turno Reale (nella tabella shifts)
+                await addDoc(collection(db, "shifts"), {
+                    date: shiftPost.dateText, 
+                    startTime: shiftPost.startTimeText,
+                    endTime: shiftPost.endTimeText,
+                    location: shiftPost.locationText,
+                    collaboratorId: targetUserId,
+                    collaboratorName: targetUserName,
+                    role: "COLLABORATORE", 
+                    status: "assegnato",
+                    payoutRate: defaultRate,
+                    rateType: defaultType,
+                    hasBreak: shiftPost.hasBreak || false,
+                    breakStartTime: shiftPost.breakStartTime || '',
+                    breakEndTime: shiftPost.breakEndTime || '',
+                    createdBy: auth.currentUser.uid,
+                    creatorName: userRole === 'FOUNDER' ? "FOUNDER" : "ADMIN",
+                    createdAt: new Date().toISOString()
+                });
+
+                // C. AGGIORNA BACHECA: CAMBIA LO STATUS IN 'ASSIGNED' (IL PUNTO CRUCIALE 🚨)
+                // Questo fa sparire il candidato dalla lista visiva perché il filtro accetta solo 'YES'
+                await updateDoc(doc(db, "provisional_shifts", shiftPost.id), {
+                    [`availabilities.${targetUserId}.status`]: 'ASSIGNED' 
+                });
+
+                // D. Notifica Push al collaboratore
+                const targetUserSnap = await getDoc(doc(db, "users", targetUserId));
+                if (targetUserSnap.exists()) {
+                    const token = targetUserSnap.data().expoPushToken;
+                    if (token) await sendPushNotification(token, "Turno Confermato", `Il turno del ${shiftPost.dateText} ti è stato assegnato.`);
+                }
+
+                const successMsg = `Turno creato per ${targetUserName}.`;
+                Platform.OS === 'web' ? alert(successMsg) : Alert.alert("Eseguito", successMsg);
+
+            } catch (e) {
+                console.error(e);
+                Platform.OS === 'web' ? alert("Errore assegnazione") : Alert.alert("Errore", "Impossibile assegnare il turno.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // GESTIONE POPUP (Web vs Native) - Per evitare blocchi su iPhone
+        if (Platform.OS === 'web') {
+            if (confirm(`${title}\n\n${message}`)) {
+                executeAssignment();
+            }
+        } else {
+            Alert.alert(title, message, [
                 { text: "Annulla", style: "cancel" },
-                { text: "CONFERMA E CREA", onPress: async () => {
-                    try {
-                        setLoading(true);
-                        
-                        // 1. Recupera Configurazione Banca Centrale (Per la tariffa)
-                        const configSnap = await getDoc(doc(db, "settings", "globalConfig"));
-                        let defaultRate = "0.10";
-                        let defaultType = "minute";
-                        if (configSnap.exists()) {
-                            defaultRate = configSnap.data().defaultRate || "0.10";
-                            defaultType = configSnap.data().defaultType || "minute";
-                        }
-
-                        // 2. Crea il documento nella collezione REALE "shifts"
-                        await addDoc(collection(db, "shifts"), {
-                            date: shiftPost.dateText, 
-                            startTime: shiftPost.startTimeText,
-                            endTime: shiftPost.endTimeText,
-                            location: shiftPost.locationText,
-                            collaboratorId: targetUserId,
-                            collaboratorName: targetUserName,
-                            role: "COLLABORATORE", 
-                            status: "assegnato",
-                            payoutRate: defaultRate,
-                            rateType: defaultType,
-                            
-                            // Dati Pausa dalla Bacheca
-                            hasBreak: shiftPost.hasBreak || false,
-                            breakStartTime: shiftPost.breakStartTime || '',
-                            breakEndTime: shiftPost.breakEndTime || '',
-                            
-                            // Audit
-                            createdBy: auth.currentUser.uid,
-                            creatorName: userRole === 'FOUNDER' ? "FOUNDER" : "ADMIN",
-                            createdAt: new Date().toISOString()
-                        });
-
-                        // 3. Notifica il collaboratore
-                        const targetUserSnap = await getDoc(doc(db, "users", targetUserId));
-                        if (targetUserSnap.exists()) {
-                            const token = targetUserSnap.data().expoPushToken;
-                            if (token) {
-                                await sendPushNotification(token, "Turno Confermato", `Il turno del ${shiftPost.dateText} ti è stato assegnato ufficialmente.`);
-                            }
-                        }
-
-                        Alert.alert("Eseguito", `Turno creato per ${targetUserName}.`);
-                    } catch (e) {
-                        console.error(e);
-                        Alert.alert("Errore", "Impossibile assegnare il turno.");
-                    } finally {
-                        setLoading(false);
-                    }
-                }}
-            ]
-        );
+                { text: "CONFERMA E CREA", onPress: executeAssignment }
+            ]);
+        }
     };
 
     const startEdit = (item) => {
@@ -317,6 +333,11 @@ export default function MostroRivoluzionario({ navigation }) {
         
         setEditingId(item.id);
         setIsCreatorOpen(true); // Apre la tendina per modificare
+// --- SCROLL MAGICO ---
+        // Porta l'utente in cima alla lista per vedere il form aperto
+        if(listRef.current) {
+            listRef.current.scrollToOffset({ offset: 0, animated: true });
+        }
     };
 
     const resetForm = () => {
@@ -417,6 +438,7 @@ export default function MostroRivoluzionario({ navigation }) {
             )}
 
             <FlatList 
+                ref={listRef}
                 data={shifts}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (

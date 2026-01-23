@@ -16,8 +16,29 @@ const Colors = {
 export default function ModificaTurno({ navigation, route }) {
     const { shift } = route.params;
 
+    // --- FUNZIONE DI SICUREZZA PER LE DATE (Italiano vs Inglese) ---
+    const parseDateSafe = (dateString) => {
+        if (!dateString) return new Date();
+        
+        // Se trova le barre (es. 17/2/2026), lo converte a mano
+        if (dateString.includes('/')) {
+            const parts = dateString.split('/');
+            // Gestisce sia D/M/YYYY che DD/MM/YYYY
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            return new Date(year, month - 1, day);
+        }
+        
+        // Altrimenti prova il metodo standard (es. 2026-02-17)
+        const standardDate = new Date(dateString);
+        // Se ancora non va bene, ritorna oggi per non crashare
+        return isNaN(standardDate.getTime()) ? new Date() : standardDate;
+    };
+
     const [location, setLocation] = useState(shift.location);
-    const [date, setDate] = useState(new Date(shift.date));
+    // Usiamo la funzione sicura qui sotto:
+    const [date, setDate] = useState(parseDateSafe(shift.date));
     
     // --- INIZIALIZZAZIONE DATE E ORARI ---
     // Ricostruiamo gli oggetti Date partendo dalle stringhe "HH:mm"
