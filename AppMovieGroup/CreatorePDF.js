@@ -1,17 +1,16 @@
-//CreatorePDF.js
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
-import { calculateFiscalData } from './CalcolatriceFiscale'; 
+import { calculateFiscalData } from './CalcolatriceFiscale'; // Importiamo la calcolatrice
 
-// Helper per formattare la durata
+// Helper per formattare la durata (es. 4h 30m)
 const formatDuration = (minutes) => {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h}h ${m}m`;
 };
 
-// Helper data italiana leggibile
+// Helper per data italiana leggibile (per l'Audit)
 const formatDateItalian = (isoString) => {
     if (!isoString) return "---";
     return new Date(isoString).toLocaleString('it-IT', { 
@@ -23,18 +22,15 @@ const formatDateItalian = (isoString) => {
 // --- GENERA HTML ---
 const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
     
-    // 🔴 1. MODALITÀ AUDIT (Registro Polizia) 🔴
+    // 🔴 1. MODALITÀ AUDIT (Registro modifiche) 🔴
     if (reportType === 'AUDIT') {
         const rows = shifts.map(shift => {
             return `
             <tr class="item-row">
                 <td style="width:20%; font-weight:bold;">${formatDateItalian(shift.createdAt)}</td>
-                <td style="width:25%; color:#E65100;">${shift.creatorName || "Sistema/Founder"}</td>
-                <td style="width:25%; color:#000;">${shift.collaboratorName || "Sconosciuto"}</td>
-                <td style="width:30%;">
-                    <b>${shift.location}</b><br/>
-                    <span style="font-size:10px; color:#555;">Turno del: ${shift.date} (${shift.startTime}-${shift.endTime})</span>
-                </td>
+                <td style="width:25%; color:#E65100;">${shift.creatorName || 'Sistema'}</td>
+                <td style="width:25%;">${shift.collaboratorName || '---'}</td>
+                <td style="width:30%; font-family:monospace;">${shift.location} <br> (${shift.startTime}-${shift.endTime})</td>
             </tr>
             `;
         }).join('');
@@ -42,163 +38,167 @@ const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
         return `
         <html>
           <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
             <style>
-              body { font-family: 'Helvetica', sans-serif; padding: 30px; color: #333; }
-              .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #BF5AF2; padding-bottom: 15px; }
-              .logo { font-size: 24px; font-weight: 900; color: #000; letter-spacing:1px; }
-              .sub-logo { color: #BF5AF2; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #333; color: #FFF; padding: 10px; text-align: left; font-size: 9px; text-transform: uppercase; }
-              td { padding: 10px; border-bottom: 1px solid #eee; font-size: 11px; vertical-align: top; }
-              .item-row:nth-child(even) { background-color: #f9f9f9; }
-              .footer { margin-top: 50px; font-size: 9px; color: #aaa; text-align: center; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #333; }
+              h1 { text-align: center; color: #DA3633; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
+              th { background-color: #333; color: #FFF; padding: 8px; text-align: left; }
+              td { padding: 8px; border-bottom: 1px solid #ddd; }
+              .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <div class="logo">LOG ASSEGNAZIONI</div>
-              <div class="sub-logo">Registro Operazioni Staff</div>
-            </div>
-            <div style="font-size:10px; margin-bottom:10px;">
-                <b>DATA STAMPA:</b> ${new Date().toLocaleDateString('it-IT')} <br/>
-                <b>OPERAZIONI TRACCIATE:</b> ${shifts.length}
-            </div>
+            <h1>⚠️ REGISTRO AUDIT (LOG)</h1>
             <table>
               <thead>
                 <tr>
-                    <th>DATA OPERAZIONE</th>
-                    <th>CHI HA ASSEGNATO (CREATOR)</th>
-                    <th>A CHI (COLLABORATORE)</th>
-                    <th>DETTAGLI TURNO</th>
+                  <th>DATA CREAZIONE</th>
+                  <th>CHI HA CREATO</th>
+                  <th>ASSEGNATO A</th>
+                  <th>DETTAGLI TURNO</th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
             </table>
-            <div class="footer">Documento di controllo interno generated by Movie Group.</div>
+            <div class="footer">Generato il ${new Date().toLocaleString()}</div>
           </body>
         </html>
         `;
     }
 
-    // 🟢 2. MODALITÀ FINANZIARIA (Standard) 🟢
-    const isGlobalReport = reportType === 'FULL';
-    
+    // 🟢 2. MODALITÀ STANDARD (Report Turni) 🟢
+    // Qui aggiungiamo le colonne PAUSA, DURATA e STATO
     const rows = shifts.map(shift => {
+        // USIAMO LA CALCOLATRICE per avere i soldi giusti
         const { cost, minutes } = calculateFiscalData(shift);
         
-        let rateLabel = '';
-        if (shift.rateType === 'minute') rateLabel = `€${shift.payoutRate}/min`;
-        else if (shift.rateType === 'daily') rateLabel = `€${shift.payoutRate} (Fisso)`;
-        else rateLabel = `€${shift.payoutRate}/h`;
+        // Formattiamo la pausa
+        const pausa = shift.breakMinutes ? `${shift.breakMinutes}m` : '0m';
+        
+        // Formattiamo lo stato (Colore dinamico)
+        const stato = shift.status ? shift.status.toUpperCase() : '---';
+        let statoColor = '#000';
+        if (shift.status === 'completato') statoColor = '#238636'; // Verde
+        else if (shift.status === 'assente') statoColor = '#DA3633'; // Rosso
+        else if (shift.status === 'in-corso') statoColor = '#D97706'; // Arancio
 
-        // Se è FULL report, mostriamo la colonna Collaboratore
-        const collabCell = isGlobalReport ? `<td style="font-weight:bold; color:#000;">${shift.collaboratorName}</td>` : '';
+        // Se è REPORT TOTALE ('FULL'), mostriamo il nome del collaboratore
+        const isGlobal = (reportType === 'FULL');
+        const collabCell = isGlobal ? `<td style="font-weight:bold;">${shift.collaboratorName}</td>` : '';
 
         return `
         <tr class="item-row">
-            <td style="width:12%">${shift.date}</td>
+            <td>${shift.date}</td>
             ${collabCell}
-            <td style="width:25%"><b>${shift.location}</b></td>
-            <td style="width:15%">${shift.startTime} - ${shift.endTime}</td>
-            <td style="width:12%; color:#555;">${formatDuration(minutes)}</td>
-            <td style="width:12%; font-size:10px; color:#777;">${rateLabel}</td>
-            <td style="width:10%; text-align: right; font-weight: bold;">€ ${cost}</td>
+            <td>${shift.location}</td>
+            <td>${shift.startTime}-${shift.endTime}</td>
+            
+            <td style="font-weight:bold;">${formatDuration(minutes)}</td>
+            <td>${pausa}</td>
+            <td style="color:${statoColor}; font-weight:bold; font-size:10px;">${stato}</td>
+            
+            <td>€${shift.payoutRate}</td>
+            <td style="font-weight:bold;">€ ${cost}</td>
         </tr>
         `;
     }).join('');
 
-    const collabHeader = isGlobalReport ? `<th style="text-align:left;">COLLABORATORE</th>` : '';
+    // Intestazione tabella dinamica (se Global o Singolo)
+    const isGlobal = (reportType === 'FULL');
+    const collabHeader = isGlobal ? '<th>COLLABORATORE</th>' : '';
 
     return `
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <style>
-          body { font-family: 'Helvetica', sans-serif; padding: 30px; color: #333; }
-          .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #4CAF50; }
-          .logo { font-size: 28px; font-weight: 900; letter-spacing: 2px; color: #000; }
-          .sub-logo { color: #4CAF50; font-size: 14px; text-transform: uppercase; margin-top: 5px; font-weight: bold; }
-          .meta-container { display: flex; justify-content: space-between; margin-bottom: 30px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; }
-          .meta-box strong { display: block; font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 3px; }
-          .meta-box span { font-size: 16px; font-weight: bold; color: #333; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          th { background-color: #333; color: #FFF; padding: 12px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-          td { padding: 12px 8px; border-bottom: 1px solid #eee; font-size: 12px; vertical-align: middle; }
-          .item-row:nth-child(even) { background-color: #fcfcfc; }
-          .summary-section { margin-top: 40px; display: flex; justify-content: flex-end; }
-          .total-card { background-color: #4CAF50; color: white; padding: 20px; border-radius: 8px; width: 250px; }
-          .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-          .total-big { font-size: 26px; font-weight: bold; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 10px; margin-top: 10px; text-align: right; }
-          .footer { margin-top: 60px; text-align: center; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">MOVIE GROUP</div>
-          <div class="sub-logo">Report Ufficiale Turni</div>
-        </div>
-        <div class="meta-container">
-          <div class="meta-box"><strong>Intestatario</strong><span>${docTitle}</span></div>
-          <div class="meta-box"><strong>Data Emissione</strong><span>${new Date().toLocaleDateString('it-IT')}</span></div>
-          <div class="meta-box"><strong>Totale Turni</strong><span>${shifts.length}</span></div>
-        </div>
-        <table>
-          <thead>
-            <tr><th>Data</th>${collabHeader}<th>Luogo</th><th>Orario</th><th>Durata</th><th>Tariffa</th><th style="text-align: right;">Importo</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="summary-section">
-            <div class="total-card">
-                <div class="total-row"><span>Ore Totali:</span><strong>${totalHours}</strong></div>
-                <div class="total-big">€ ${totalAmount}</div>
-            </div>
-        </div>
-        <div class="footer">Documento generato automaticamente da Movie Group.</div>
-      </body>
-    </html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #333; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            h1 { font-size: 22px; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+            h2 { font-size: 12px; color: #666; margin-top: 5px; font-weight: normal; }
+            
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th { background-color: #f2f2f2; color: #000; padding: 8px; text-align: left; border-bottom: 2px solid #999; text-transform: uppercase; font-size: 10px; }
+            td { padding: 8px; border-bottom: 1px solid #eee; }
+            .item-row:nth-child(even) { background-color: #f9f9f9; }
+            
+            .total-box { float: right; margin-top: 20px; width: 40%; text-align: right; }
+            .total-row { font-size: 12px; margin-bottom: 5px; color: #666; }
+            .grand-total { font-size: 18px; font-weight: bold; color: #000; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+            
+            .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; clear: both; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${docTitle}</h1>
+            <h2>REPORT UFFICIALE APP FOUNDER</h2>
+          </div>
+  
+          <table>
+            <thead>
+              <tr>
+                <th>DATA</th>
+                ${collabHeader}
+                <th>LUOGO</th>
+                <th>ORARIO</th>
+                <th>DURATA</th> <th>PAUSA</th>  <th>STATO</th>  <th>TARIFFA</th>
+                <th>IMPORTO</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+  
+          <div class="total-box">
+            <div class="total-row">ORE TOTALI: <b>${totalHours}</b></div>
+            <div class="grand-total">TOTALE: € ${totalAmount}</div>
+          </div>
+  
+          <div class="footer">
+            Generato automaticamente dal Sistema Gestionale Founder - ${new Date().toLocaleDateString('it-IT')}
+          </div>
+        </body>
+      </html>
     `;
 };
 
-// --- FUNZIONE EXPORT (FIX "VANILLA" PER WEB) ---
+// --- FUNZIONE PRINCIPALE EXPORT ---
 export const generatePDF = async (docTitle, shifts, reportType) => {
     try {
         let grandTotal = 0;
         let totalMinutesWorked = 0;
 
+        // Calcoliamo i totali
         shifts.forEach(s => {
             const { cost, minutes } = calculateFiscalData(s);
             grandTotal += parseFloat(cost);
             totalMinutesWorked += minutes;
         });
 
+        // Creiamo l'HTML passando i dati
         const html = createHTML(docTitle, shifts, grandTotal.toFixed(2), formatDuration(totalMinutesWorked), reportType);
 
-        // === BIVIO BLINDATO ===
+        // === BIVIO WEB vs MOBILE ===
         if (Platform.OS === 'web') {
-            // SU PC (WEB): Metodo Manuale "Nuova Finestra"
             const printWindow = window.open('', '_blank', 'width=800,height=600');
-            
             if (printWindow) {
                 printWindow.document.write(html);
                 printWindow.document.close(); 
                 printWindow.focus();
-                
-                setTimeout(() => {
-                    printWindow.print();
-                }, 500);
+                setTimeout(() => { printWindow.print(); }, 500);
             } else {
-                alert("Attenzione: Il browser ha bloccato il Pop-up. Autorizzalo in alto a destra!");
+                Alert.alert("Attenzione", "Sblocca i popup per stampare.");
             }
         } else {
-            // SU APP (MOBILE): Metodo Classico
             const { uri } = await Print.printToFileAsync({ html });
             await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
         }
         
     } catch (error) {
         console.error("PDF Error:", error);
-        Alert.alert("Errore", error.message);
+        Alert.alert("Errore PDF", "Impossibile generare il PDF.");
     }
 };

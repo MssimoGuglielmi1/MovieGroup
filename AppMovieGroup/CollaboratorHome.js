@@ -233,12 +233,19 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
               return; // Blocca tutto
           }
 
-          // 3. Se permesso OK, prendiamo posizione
+// 3. Se permesso OK, prendiamo posizione
           let loc = await Location.getCurrentPositionAsync({});
+
+          // --- CALCOLO ORA ATTUALE (HH:MM) PER EXCEL ---
+          const now = new Date();
+          const hh = now.getHours().toString().padStart(2, '0');
+          const mm = now.getMinutes().toString().padStart(2, '0');
+          const timeString = `${hh}:${mm}`; // Es: "09:30"
 
           await updateDoc(doc(db, "shifts", shift.id), {
               status: 'in-corso',
-              realStartTime: new Date().toISOString(),
+              realStartTime: now.toISOString(), // Per il sistema
+              actualStartTime: timeString,      // <--- PER L'EXCEL (Post-it 4)
               startLocation: { latitude: loc.coords.latitude, longitude: loc.coords.longitude }
           });
       } catch (e) { 
@@ -255,9 +262,16 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
 
       const executeEnd = async () => {
           try {
+// --- CALCOLO ORA ATTUALE (HH:MM) ---
+              const now = new Date();
+              const hh = now.getHours().toString().padStart(2, '0');
+              const mm = now.getMinutes().toString().padStart(2, '0');
+              const timeString = `${hh}:${mm}`;
+
               await updateDoc(doc(db, "shifts", shift.id), {
                   status: 'completato',
-                  realEndTime: new Date().toISOString()
+                  realEndTime: now.toISOString(),
+                  actualEndTime: timeString // <--- PER L'EXCEL
               });
               // Feedback visivo su PC
               if (Platform.OS === 'web') alert("Turno terminato con successo!");

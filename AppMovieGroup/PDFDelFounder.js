@@ -6,6 +6,7 @@ import { db } from './firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { generatePDF } from './CreatorePDF'; // <--- Ora useremo il nuovo parametro
 import { Picker } from '@react-native-picker/picker';
+import { calculateFiscalData } from './CalcolatriceFiscale';
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -16,8 +17,15 @@ const Colors = {
     accentCyan: '#00D1FF', accentGreen: '#238636', accentRed: '#DA3633', accentPurple: '#A371F7', divider: '#30363D', excelGreen: '#107C41'
 };
 
+const MONTHS = [
+    "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+];
+
 export default function PDFDelFounder({ navigation }) {
     const [users, setUsers] = useState([]);
+    // MESE SELEZIONATO (Default: Mese Corrente)
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedUser, setSelectedUser] = useState('');
     const [loading, setLoading] = useState(false);
     const [loadingData, setLoadingData] = useState(true);
@@ -38,13 +46,28 @@ export default function PDFDelFounder({ navigation }) {
         fetchStaff();
     }, []);
 
-// --- MOTORE EXCEL (.xlsx) ---
+// --- MOTORE EXCEL AGGIORNATO (Fix Importi, Pausa e Durata) ---
     const generateExcel = async (title, data, type) => {
         try {
             let excelData = [];
+            let totalMoney = 0;
+            let totalMinutes = 0;
+
+            // Helper minuti per calcolo ritardi
+            const getMinutes = (timeStr) => {
+                if (!timeStr) return 0;
+                const [h, m] = timeStr.split(':').map(Number);
+                return h * 60 + m;
+            };
+
+            // Helper durata
+            const formatDuration = (minutes) => {
+                const h = Math.floor(minutes / 60);
+                const m = minutes % 60;
+                return `${h}h ${m}m`;
+            };
 
             if (type === 'AUDIT') {
-                // EXCEL SPECIFICO PER AUDIT (SOLO CHI HA FATTO COSA)
                 excelData = data.map(item => ({
                     DATA_CREAZIONE: item.createdAt ? new Date(item.createdAt).toLocaleString('it-IT') : "N/D",
                     CHI_HA_ASSEGNATO: item.creatorName || "Sistema/Founder",
@@ -54,27 +77,76 @@ export default function PDFDelFounder({ navigation }) {
                     ORARIO: `${item.startTime} - ${item.endTime}`
                 }));
             } else {
-                // EXCEL STANDARD (SOLDI E ORE)
-                excelData = data.map(item => ({
-                    DATA: item.date || "---",
-                    LUOGO: item.location || "---",
-                    COLLABORATORE: item.collaboratorName || "N/D",
-                    RUOLO: item.collaboratorRole || "---",
-                    INIZIO: item.startTime || "---",
-                    FINE: item.endTime || "---",
-                    STATO: item.status ? item.status.toUpperCase() : "---",
-                    IMPORTO: item.payoutRate ? `€ ${item.payoutRate}` : "---",
-                    ASSEGNATO_DA: item.creatorName || "---"
-                }));
+                // STANDARD + RITARDI + PAUSA + TOTALI CORRETTI
+                excelData = data.map(item => {
+                    const { cost, minutes } = calculateFiscalData(item);
+                    totalMoney += parseFloat(cost);
+                    totalMinutes += minutes;
+
+                    // Calcolo Ritardo
+                    let ritardoStr = "---";
+                    if (item.startTime && item.actualStartTime) {
+                        const schedStart = getMinutes(item.startTime);
+                        const realStart = getMinutes(item.actualStartTime);
+                        const diff = realStart - schedStart;
+                        if (diff > 0) ritardoStr = `+${diff} min`; 
+                        else if (diff === 0) ritardoStr = "Puntuale";
+                        else ritardoStr = `Anticipo ${Math.abs(diff)}m`;
+                    }
+
+                    return {
+                        DATA: item.date || "---",
+                        LUOGO: item.location || "---",
+                        COLLABORATORE: item.collaboratorName || "N/D",
+                        RUOLO: item.collaboratorRole || "---",
+                        
+                        // ORARI
+                        INIZIO_PREV: item.startTime || "---",
+                        FINE_PREV: item.endTime || "---",
+                        INIZIO_REALE: item.actualStartTime || "---",
+                        FINE_REALE: item.actualEndTime || "---",
+                        
+                        // NUOVE COLONNE RICHIESTE
+                        PAUSA: item.breakMinutes ? `${item.breakMinutes} min` : "0 min",
+                        DURATA_TOTALE: formatDuration(minutes), // <--- Eccola!
+                        RITARDO: ritardoStr,
+                        
+                        STATO: item.status ? item.status.toUpperCase() : "---",
+                        
+                        // QUI CORREGGIAMO L'ERRORE "0.1": USIAMO 'cost' (il totale), NON 'payoutRate'
+                        IMPORTO_TOTALE: `€ ${cost}`, 
+                        
+                        ASSEGNATO_DA: item.creatorName || "---"
+                    };
+                });
+
+                // RIGA TOTALI
+                excelData.push({}); 
+                excelData.push({
+                    DATA: "TOTALE MESE",
+                    LUOGO: "", COLLABORATORE: "", RUOLO: "",
+                    INIZIO_PREV: "", FINE_PREV: "", INIZIO_REALE: "", FINE_REALE: "",
+                    PAUSA: "",
+                    DURATA_TOTALE: formatDuration(totalMinutes), // Totale Ore
+                    RITARDO: "",
+                    STATO: "TOTALE €:",
+                    IMPORTO_TOTALE: `€ ${totalMoney.toFixed(2)}`, // Totale Soldi
+                    ASSEGNATO_DA: ""
+                });
             }
 
             const ws = XLSX.utils.json_to_sheet(excelData);
             
-            // Larghezza colonne dinamica
+            // Larghezza colonne ottimizzata
             if (type === 'AUDIT') {
-                ws['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 15 }];
+                ws['!cols'] = [{wch:25}, {wch:25}, {wch:25}, {wch:25}, {wch:15}, {wch:15}];
             } else {
-                ws['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }];
+                ws['!cols'] = [
+                    {wch:12}, {wch:15}, {wch:20}, {wch:12}, // Info
+                    {wch:8}, {wch:8}, {wch:8}, {wch:8}, // Orari
+                    {wch:10}, {wch:12}, {wch:15}, // Pausa, Durata, Ritardo
+                    {wch:12}, {wch:12}, {wch:15} // Stato, Importo, Assegnato
+                ];
             }
 
             const wb = XLSX.utils.book_new();
@@ -86,7 +158,9 @@ export default function PDFDelFounder({ navigation }) {
                 const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
                 const fileName = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
                 const uri = FileSystem.documentDirectory + fileName;
+                
                 await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
+                
                 if (await Sharing.isAvailableAsync()) {
                     await Sharing.shareAsync(uri);
                 } else {
@@ -124,12 +198,15 @@ export default function PDFDelFounder({ navigation }) {
                 );
             } 
             else if (type === 'FULL') {
-                title = "REPORT_STAFF_COMPLETO";
+                // TITOLO COL MESE SELEZIONATO (Post-it 2)
+                const monthName = MONTHS[selectedMonth].toUpperCase();
+                title = `REPORT_TOTALE_${monthName}`;
+                
                 q = query(
                     collection(db, "shifts"), 
                     where("status", "==", "completato"), 
                 );
-            } 
+            }
             else if (type === 'AUDIT') {
                 title = "AUDIT_ASSEGNAZIONI";
                 // Per l'Audit prendiamo TUTTO (non solo completati) e anche recenti
@@ -140,6 +217,14 @@ export default function PDFDelFounder({ navigation }) {
 
             const snapshot = await getDocs(q);
             let finalData = snapshot.docs.map(doc => doc.data());
+            // --- FILTRO MESE (SOLO PER REPORT TOTALE) ---
+            if (type === 'FULL') {
+                finalData = finalData.filter(shift => {
+                    if (!shift.date) return false;
+                    const shiftDate = new Date(shift.date);
+                    return shiftDate.getMonth() === selectedMonth;
+                });
+            }
 
             // Ordinamento
             if (type === 'AUDIT') {
@@ -232,6 +317,26 @@ export default function PDFDelFounder({ navigation }) {
                     </View>
                     <Text style={styles.cardDesc}>Un unico documento con i turni di tutto lo staff completati negli ultimi 60 giorni.</Text>
                     
+                {/* TENDINA MESI (Post-it 2) */}
+                    <View style={[styles.pickerContainer, {borderColor: Colors.accentGreen, marginBottom:15}]}>
+                        <Picker 
+                            selectedValue={selectedMonth} 
+                            onValueChange={(v) => setSelectedMonth(v)} 
+                            dropdownIconColor="#FFF" 
+                            style={{color:'#FFF'}}
+                            itemStyle={{ color: '#FFFFFF' }}
+                        >
+                            {MONTHS.map((m, index) => (
+                                <Picker.Item 
+                                    key={index} 
+                                    label={m} 
+                                    value={index} 
+                                    color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} 
+                                />
+                            ))}
+                        </Picker>
+                    </View>
+
                     <View style={{flexDirection:'row', gap:10}}>
                         <TouchableOpacity style={[styles.btn, {backgroundColor: Colors.accentCyan, flex:1}]} onPress={() => handleDownload('FULL', 'PDF')} disabled={loading}>
                             {loading ? <ActivityIndicator color="#FFF"/> : <Text style={[styles.btnText, {color:'#000'}]}>📄 PDF</Text>}
