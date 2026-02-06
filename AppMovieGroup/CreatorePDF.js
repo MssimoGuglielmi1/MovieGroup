@@ -52,13 +52,19 @@ const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
             <h1>⚠️ REGISTRO AUDIT (LOG)</h1>
             <table>
               <thead>
-                <tr>
-                  <th>DATA CREAZIONE</th>
-                  <th>CHI HA CREATO</th>
-                  <th>ASSEGNATO A</th>
-                  <th>DETTAGLI TURNO</th>
-                </tr>
-              </thead>
+              <tr>
+                <th>DATA</th>
+                ${collabHeader}
+                <th>LUOGO</th>
+                <th>ORARIO</th>
+                
+                <th>DURATA</th>
+                <th>PAUSA</th>
+                <th>STATO</th>
+                <th>TARIFFA</th>
+                <th>IMPORTO</th>
+              </tr>
+            </thead>
               <tbody>${rows}</tbody>
             </table>
             <div class="footer">Generato il ${new Date().toLocaleString()}</div>
@@ -69,23 +75,23 @@ const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
 
     // 🟢 2. MODALITÀ STANDARD (Report Turni) 🟢
     // Qui aggiungiamo le colonne PAUSA, DURATA e STATO
-    const rows = shifts.map(shift => {
-        // USIAMO LA CALCOLATRICE per avere i soldi giusti
+const rows = shifts.map(shift => {
+        // 1. CALCOLO PRECISO
         const { cost, minutes } = calculateFiscalData(shift);
         
-        // Formattiamo la pausa
+        // 2. FORMATTAZIONE DATI
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        const durata = `${h}h ${m}m`;
+        
         const pausa = shift.breakMinutes ? `${shift.breakMinutes}m` : '0m';
         
-        // Formattiamo lo stato (Colore dinamico)
-        const stato = shift.status ? shift.status.toUpperCase() : '---';
+        // Colore Stato
         let statoColor = '#000';
-        if (shift.status === 'completato') statoColor = '#238636'; // Verde
-        else if (shift.status === 'assente') statoColor = '#DA3633'; // Rosso
-        else if (shift.status === 'in-corso') statoColor = '#D97706'; // Arancio
+        if(shift.status === 'completato') statoColor = 'green';
+        if(shift.status === 'assente') statoColor = 'red';
 
-        // Se è REPORT TOTALE ('FULL'), mostriamo il nome del collaboratore
-        const isGlobal = (reportType === 'FULL');
-        const collabCell = isGlobal ? `<td style="font-weight:bold;">${shift.collaboratorName}</td>` : '';
+        const collabCell = isGlobalReport ? `<td style="font-weight:bold;">${shift.collaboratorName}</td>` : '';
 
         return `
         <tr class="item-row">
@@ -94,9 +100,9 @@ const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
             <td>${shift.location}</td>
             <td>${shift.startTime}-${shift.endTime}</td>
             
-            <td style="font-weight:bold;">${formatDuration(minutes)}</td>
+            <td style="font-weight:bold;">${durata}</td>
             <td>${pausa}</td>
-            <td style="color:${statoColor}; font-weight:bold; font-size:10px;">${stato}</td>
+            <td style="color:${statoColor}; font-weight:bold; font-size:10px;">${shift.status ? shift.status.toUpperCase() : '--'}</td>
             
             <td>€${shift.payoutRate}</td>
             <td style="font-weight:bold;">€ ${cost}</td>
@@ -172,10 +178,13 @@ export const generatePDF = async (docTitle, shifts, reportType) => {
         let totalMinutesWorked = 0;
 
         // Calcoliamo i totali
+        // Calcoliamo i totali (SOLO COMPLETATI)
         shifts.forEach(s => {
-            const { cost, minutes } = calculateFiscalData(s);
-            grandTotal += parseFloat(cost);
-            totalMinutesWorked += minutes;
+            if (s.status === 'completato') {
+                const { cost, minutes } = calculateFiscalData(s);
+                grandTotal += parseFloat(cost);
+                totalMinutesWorked += minutes;
+            }
         });
 
         // Creiamo l'HTML passando i dati

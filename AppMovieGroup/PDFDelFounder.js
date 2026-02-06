@@ -79,20 +79,32 @@ export default function PDFDelFounder({ navigation }) {
             } else {
                 // STANDARD + RITARDI + PAUSA + TOTALI CORRETTI
                 excelData = data.map(item => {
-                    const { cost, minutes } = calculateFiscalData(item);
+                    // --- INIZIO NUOVO CODICE ---
+                    const { cost, minutes } = calculateFiscalData(item); 
+                
+                // --- SOMMA SOLO SE IL TURNO È FINITO ---
+                if (item.status === 'completato') {
                     totalMoney += parseFloat(cost);
                     totalMinutes += minutes;
+                }
+                // ---------------------------------------
 
-                    // Calcolo Ritardo
+                    // Calcolo Ritardo (Nuovo per Post-it 4)
                     let ritardoStr = "---";
                     if (item.startTime && item.actualStartTime) {
-                        const schedStart = getMinutes(item.startTime);
-                        const realStart = getMinutes(item.actualStartTime);
-                        const diff = realStart - schedStart;
+                        // Funzione rapida interna per convertire "HH:MM" in minuti
+                        const getMinutes = (t) => { const [h,m]=t.split(':').map(Number); return h*60+m; };
+                        const diff = getMinutes(item.actualStartTime) - getMinutes(item.startTime);
+                        
                         if (diff > 0) ritardoStr = `+${diff} min`; 
                         else if (diff === 0) ritardoStr = "Puntuale";
                         else ritardoStr = `Anticipo ${Math.abs(diff)}m`;
                     }
+
+                    // Formattazione Durata
+                    const h = Math.floor(minutes / 60);
+                    const m = minutes % 60;
+                    const durataStr = `${h}h ${m}m`;
 
                     return {
                         DATA: item.date || "---",
@@ -100,22 +112,19 @@ export default function PDFDelFounder({ navigation }) {
                         COLLABORATORE: item.collaboratorName || "N/D",
                         RUOLO: item.collaboratorRole || "---",
                         
-                        // ORARI
                         INIZIO_PREV: item.startTime || "---",
                         FINE_PREV: item.endTime || "---",
                         INIZIO_REALE: item.actualStartTime || "---",
                         FINE_REALE: item.actualEndTime || "---",
                         
-                        // NUOVE COLONNE RICHIESTE
+                        // NUOVE COLONNE (Pausa, Durata, Ritardo, Stato)
                         PAUSA: item.breakMinutes ? `${item.breakMinutes} min` : "0 min",
-                        DURATA_TOTALE: formatDuration(minutes), // <--- Eccola!
+                        DURATA: durataStr,
                         RITARDO: ritardoStr,
-                        
                         STATO: item.status ? item.status.toUpperCase() : "---",
                         
-                        // QUI CORREGGIAMO L'ERRORE "0.1": USIAMO 'cost' (il totale), NON 'payoutRate'
-                        IMPORTO_TOTALE: `€ ${cost}`, 
-                        
+                        // IMPORTO CORRETTO
+                        IMPORTO: `€ ${cost}`,
                         ASSEGNATO_DA: item.creatorName || "---"
                     };
                 });
@@ -191,21 +200,18 @@ export default function PDFDelFounder({ navigation }) {
                 const userName = userObj ? `${userObj.firstName} ${userObj.lastName}` : "Utente";
                 title = `REPORT_${userName.toUpperCase()}`;
                 
-                q = query(
-                    collection(db, "shifts"),
-                    where("collaboratorId", "==", selectedUser),
-                    where("status", "==", "completato"),
-                );
+                q = query(collection(db, "shifts"));
             } 
             else if (type === 'FULL') {
-                // TITOLO COL MESE SELEZIONATO (Post-it 2)
-                const monthName = MONTHS[selectedMonth].toUpperCase();
-                title = `REPORT_TOTALE_${monthName}`;
+                // TITOLO DINAMICO (Se -1 scriviamo COMPLETO, altrimenti il Mese)
+                if (selectedMonth === -1) {
+                    title = "REPORT_TOTALE_COMPLETO";
+                } else {
+                    const monthName = MONTHS[selectedMonth].toUpperCase();
+                    title = `REPORT_TOTALE_${monthName}`;
+                }
                 
-                q = query(
-                    collection(db, "shifts"), 
-                    where("status", "==", "completato"), 
-                );
+                q = query(collection(db, "shifts"));
             }
             else if (type === 'AUDIT') {
                 title = "AUDIT_ASSEGNAZIONI";
@@ -220,6 +226,9 @@ export default function PDFDelFounder({ navigation }) {
             // --- FILTRO MESE (SOLO PER REPORT TOTALE) ---
             if (type === 'FULL') {
                 finalData = finalData.filter(shift => {
+                    // SE HO SCELTO "TUTTO" (-1), NON FILTRARE NULLA!
+                    if (selectedMonth === -1) return true; 
+
                     if (!shift.date) return false;
                     const shiftDate = new Date(shift.date);
                     return shiftDate.getMonth() === selectedMonth;
@@ -326,6 +335,7 @@ export default function PDFDelFounder({ navigation }) {
                             style={{color:'#FFF'}}
                             itemStyle={{ color: '#FFFFFF' }}
                         >
+                            <Picker.Item label="TUTTI" value={-1} color="#DA3633" />
                             {MONTHS.map((m, index) => (
                                 <Picker.Item 
                                     key={index} 
