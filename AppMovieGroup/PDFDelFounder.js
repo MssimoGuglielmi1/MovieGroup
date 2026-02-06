@@ -7,7 +7,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { generatePDF } from './CreatorePDF'; // <--- Ora useremo il nuovo parametro
 import { Picker } from '@react-native-picker/picker';
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
 
@@ -86,7 +86,7 @@ export default function PDFDelFounder({ navigation }) {
                 const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
                 const fileName = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx`;
                 const uri = FileSystem.documentDirectory + fileName;
-                await FileSystem.writeAsStringAsync(uri, wbout, { encoding: FileSystem.EncodingType.Base64 });
+                await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
                 if (await Sharing.isAvailableAsync()) {
                     await Sharing.shareAsync(uri);
                 } else {
