@@ -37,5 +37,8 @@
     "react-native-web": "^0.21.0",
     "xlsx": "^0.18.5"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
 }

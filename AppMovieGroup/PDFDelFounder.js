@@ -83,9 +83,10 @@ export default function PDFDelFounder({ navigation }) {
                     const { cost, minutes } = calculateFiscalData(item); 
                 
                 // --- SOMMA SOLO SE IL TURNO È FINITO ---
-                if (item.status === 'completato') {
-                    totalMoney += parseFloat(cost);
-                    totalMinutes += minutes;
+                const _status = String(item.status || '').toLowerCase();
+                if (_status === 'completato') {
+                    totalMoney += Number(cost) || 0;
+                    totalMinutes += Number(minutes) || 0;
                 }
                 // ---------------------------------------
 

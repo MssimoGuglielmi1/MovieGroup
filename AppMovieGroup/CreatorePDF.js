@@ -1,5 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { Alert, Platform } from 'react-native';
 import { calculateFiscalData } from './CalcolatriceFiscale'; // Importiamo la calcolatrice
 
@@ -91,7 +92,7 @@ const rows = shifts.map(shift => {
         if(shift.status === 'completato') statoColor = 'green';
         if(shift.status === 'assente') statoColor = 'red';
 
-        const collabCell = isGlobalReport ? `<td style="font-weight:bold;">${shift.collaboratorName}</td>` : '';
+        const collabCell = (reportType === 'FULL') ? `<td style="font-weight:bold;">${shift.collaboratorName}</td>` : '';
 
         return `
         <tr class="item-row">
@@ -177,14 +178,14 @@ export const generatePDF = async (docTitle, shifts, reportType) => {
         let grandTotal = 0;
         let totalMinutesWorked = 0;
 
-        // Calcoliamo i totali
-        // Calcoliamo i totali (SOLO COMPLETATI)
+        // Calcoliamo i totali (SOLO COMPLETATI) - controllo case-insensitive e parsing sicuro
         shifts.forEach(s => {
-            if (s.status === 'completato') {
-                const { cost, minutes } = calculateFiscalData(s);
-                grandTotal += parseFloat(cost);
-                totalMinutesWorked += minutes;
-            }
+          const _status = String(s.status || '').toLowerCase();
+          if (_status === 'completato') {
+            const { cost, minutes } = calculateFiscalData(s);
+            grandTotal += Number(cost) || 0;
+            totalMinutesWorked += Number(minutes) || 0;
+          }
         });
 
         // Creiamo l'HTML passando i dati
@@ -192,18 +193,40 @@ export const generatePDF = async (docTitle, shifts, reportType) => {
 
         // === BIVIO WEB vs MOBILE ===
         if (Platform.OS === 'web') {
-            const printWindow = window.open('', '_blank', 'width=800,height=600');
-            if (printWindow) {
-                printWindow.document.write(html);
-                printWindow.document.close(); 
-                printWindow.focus();
-                setTimeout(() => { printWindow.print(); }, 500);
-            } else {
-                Alert.alert("Attenzione", "Sblocca i popup per stampare.");
-            }
+          const printWindow = window.open('', '_blank', 'width=800,height=600');
+          if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close(); 
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+          } else {
+            Alert.alert("Attenzione", "Sblocca i popup per stampare.");
+          }
         } else {
-            const { uri } = await Print.printToFileAsync({ html });
+          const { uri } = await Print.printToFileAsync({ html });
+          if (!uri) throw new Error('Nessun file PDF generato (uri mancante).');
+
+          // Proviamo a condividere; in caso di errore salviamo come fallback
+          try {
             await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+          } catch (shareErr) {
+            console.warn('Condivisione fallita, provo a salvare localmente:', shareErr);
+            try {
+              const info = await FileSystem.getInfoAsync(uri);
+              let dest = FileSystem.documentDirectory + `${docTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+              if (info.exists) {
+                await FileSystem.copyAsync({ from: uri, to: dest });
+              } else {
+                // Se uri non esiste come file (caso raro), scriviamo il contenuto base64
+                const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }).catch(() => null);
+                if (base64) await FileSystem.writeAsStringAsync(dest, base64, { encoding: FileSystem.EncodingType.Base64 });
+              }
+              Alert.alert('Salvato', `PDF salvato in: ${dest}`);
+            } catch (fsErr) {
+              console.error('Errore salvataggio fallback PDF:', fsErr);
+              throw shareErr; // rilanciamo l'errore originale verso il catch esterno
+            }
+          }
         }
         
     } catch (error) {
