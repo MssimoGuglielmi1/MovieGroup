@@ -1,6 +1,6 @@
 //ShiftManagementScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator, TextInput, Modal, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where, serverTimestamp } from 'firebase/firestore'; 
@@ -22,6 +22,49 @@ export default function ShiftManagementScreen({ navigation }) {
     const [searchText, setSearchText] = useState(''); // <--- STATO PER LA RICERCA
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
     const [showGuide, setShowGuide] = useState(false); // <--- Stato per aprire/chiudere la guida
+
+    // --- GOD MODE: VARIABILI DI STATO ---
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editingShift, setEditingShift] = useState(null);
+    const [editForm, setEditForm] = useState({
+        realStartTime: '', realEndTime: '', 
+        startTime: '', endTime: '',
+        breakDuration: '', payoutRate: ''
+    });
+
+    // --- APRI LA MODIFICA ---
+    const openEditModal = (shift) => {
+        setEditingShift(shift);
+        setEditForm({
+            realStartTime: shift.realStartTime || shift.startTime || '',
+            realEndTime: shift.realEndTime || shift.endTime || '',
+            startTime: shift.startTime || '',
+            endTime: shift.endTime || '',
+            breakDuration: shift.breakDuration ? String(shift.breakDuration) : '0',
+            payoutRate: shift.payoutRate ? String(shift.payoutRate) : '0',
+        });
+        setEditModalVisible(true);
+    };
+
+    // --- SALVA LA MODIFICA ---
+    const saveEdit = async () => {
+        if (!editingShift) return;
+        try {
+            await updateDoc(doc(db, "shifts", editingShift.id), {
+                realStartTime: editForm.realStartTime,
+                realEndTime: editForm.realEndTime,
+                startTime: editForm.startTime,
+                endTime: editForm.endTime,
+                breakDuration: parseInt(editForm.breakDuration) || 0,
+                payoutRate: parseFloat(editForm.payoutRate) || 0,
+            });
+            setEditModalVisible(false);
+            setEditingShift(null);
+            Alert.alert("Successo", "Turno aggiornato.");
+        } catch (error) {
+            Alert.alert("Errore", error.message);
+        }
+    };
 
     // Recupera il ruolo dell'utente corrente
     useEffect(() => {
@@ -370,14 +413,28 @@ const renderShiftItem = ({ item }) => {
                 badgeText = "IN-CORSO";
             }
         }
-        // ...
-        // --- 1. VERSIONE STORICO (Opaca) ---
+
+        // --- 1. VERSIONE STORICO (CON MODIFICA ASSOLUTA) ---
         if (currentTab === 'HISTORY') {
             return (
-                <View style={[styles.card, { opacity: 0.6, borderColor: Colors.border }]}>
-                    <View style={{marginBottom: 8}}>
-                        <Text style={[styles.locationText, { color: Colors.textSecondary }]}>{item.location}</Text>
-                    </View>
+                <View style={[styles.card, { opacity: 0.8, borderColor: Colors.border }]}>
+                    
+                    {/* 🔥 GOD MODE: TASTO MODIFICA (POSIZIONE ASSOLUTA: ANGOLO IN ALTO A DESTRA) 🔥 */}
+                    {(isFounder || currentUserRole === 'AMMINISTRATORE') && (
+                        <TouchableOpacity 
+                            onPress={() => openEditModal(item)} 
+                            style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, padding: 5 }}
+                        >
+                            {/* Stessa icona piccola e grigia degli Operativi */}
+                            <Feather name="edit-2" size={14} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+
+                    {/* LUOGO (Con un po' di spazio a destra paddingRight per non finire sotto la matita) */}
+                    <Text style={[styles.locationText, { color: Colors.textSecondary, marginBottom: 8, paddingRight: 25 }]}>
+                        {item.location}
+                    </Text>
+
                     <Text style={{ color: Colors.textSecondary, marginBottom: 8, fontSize: 12 }}>
                         📅 {item.date} • {item.startTime}-{item.endTime}
                     </Text>
@@ -389,7 +446,6 @@ const renderShiftItem = ({ item }) => {
                             <Text style={[styles.badgeText, { color: '#FFF' }]}>{badgeText}</Text>
                         </View>
                     </View>
-                    {/* Se c'è override mostriamo piccola icona */}
                     {item.adminOverride && (
                         <Text style={{color: Colors.warning, fontSize:10, marginTop:5, fontStyle:'italic'}}>* Convalidato Manualmente</Text>
                     )}
@@ -552,6 +608,43 @@ return (
                 onClose={() => setShowGuide(false)} 
                 userRole="GESTORE_TURNI"  // <--- PRIMA ERA "AMMINISTRATORE", ORA CAMBIALO COSÌ
             />
+            {/* --- MODAL GOD MODE --- */}
+            <Modal visible={editModalVisible} transparent={true} animationType="slide">
+                <View style={{flex:1, backgroundColor:'rgba(0,0,0,0.8)', justifyContent:'center', alignItems:'center'}}>
+                    <View style={{width:'90%', backgroundColor:'#1C1C1E', padding:20, borderRadius:20, borderWidth:1, borderColor:'#EAB308'}}>
+                        <Text style={{fontSize:20, fontWeight:'bold', color:'#EAB308', textAlign:'center', marginBottom:10}}>MODIFICA TURNO</Text>
+                        
+                        <ScrollView>
+                            <Text style={{color:'#8E8E93', fontSize:12, marginTop:10}}>ORARIO REALE (INIZIO - FINE)</Text>
+                            <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+                                <TextInput style={{width:'48%', backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8}} value={editForm.realStartTime} onChangeText={t=>setEditForm({...editForm, realStartTime:t})} placeholder="HH:MM" placeholderTextColor="#555"/>
+                                <TextInput style={{width:'48%', backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8}} value={editForm.realEndTime} onChangeText={t=>setEditForm({...editForm, realEndTime:t})} placeholder="HH:MM" placeholderTextColor="#555"/>
+                            </View>
+
+                            <Text style={{color:'#8E8E93', fontSize:12, marginTop:10}}>PAUSA (MINUTI)</Text>
+                            <TextInput style={{backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8}} value={editForm.breakDuration} keyboardType="numeric" onChangeText={t=>setEditForm({...editForm, breakDuration:t})}/>
+
+                            <Text style={{color:'#8E8E93', fontSize:12, marginTop:10}}>TARIFFA ORARIA (€)</Text>
+                            <TextInput style={{backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8}} value={editForm.payoutRate} keyboardType="numeric" onChangeText={t=>setEditForm({...editForm, payoutRate:t})}/>
+                        
+                            <Text style={{color:'#EAB308', fontSize:12, marginTop:15, fontWeight:'bold'}}>ORARIO PREVISTO (Opzionale)</Text>
+                            <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+                                <TextInput style={{width:'48%', backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8, borderColor:'#EAB308', borderWidth:1}} value={editForm.startTime} onChangeText={t=>setEditForm({...editForm, startTime:t})}/>
+                                <TextInput style={{width:'48%', backgroundColor:'#000', color:'#FFF', padding:10, borderRadius:8, borderColor:'#EAB308', borderWidth:1}} value={editForm.endTime} onChangeText={t=>setEditForm({...editForm, endTime:t})}/>
+                            </View>
+                        </ScrollView>
+
+                        <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:20}}>
+                            <TouchableOpacity onPress={()=>setEditModalVisible(false)} style={{padding:15, backgroundColor:'#333', borderRadius:10, flex:1, marginRight:5, alignItems:'center'}}>
+                                <Text style={{color:'#FFF'}}>ANNULLA</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={saveEdit} style={{padding:15, backgroundColor:'#EAB308', borderRadius:10, flex:1, marginLeft:5, alignItems:'center'}}>
+                                <Text style={{color:'#000', fontWeight:'bold'}}>SALVA</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
