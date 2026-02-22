@@ -143,6 +143,9 @@ export default function StoricoFounder({ navigation }) {
         );
     });
 
+    // --- CALCOLO TOTALE DINAMICO (Architetto) ---
+    const filteredTotal = filteredShifts.reduce((somma, turno) => somma + parseFloat(turno.realCost || 0), 0);
+
 return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -206,10 +209,12 @@ return (
                 )}
             </View>
 
-            {/* TOTALONE */}
+             {/* TOTALONE DINAMICO */}
             <View style={styles.summaryBox}>
-                <Text style={styles.summaryLabel}>TOTALE STORICO (TUTTO)</Text>
-                <Text style={styles.summaryValue}>€ {totalCost.toFixed(2)}</Text>
+                <Text style={styles.summaryLabel}>
+                    {searchText.length > 0 ? `TOTALE MESE/FILTRO (${filteredShifts.length} turni)` : 'TOTALE STORICO (TUTTO)'}
+                </Text>
+                <Text style={styles.summaryValue}>€ {filteredTotal.toFixed(2)}</Text>
             </View>
 
             {/* LISTA */}

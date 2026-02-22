@@ -1,4 +1,4 @@
-// CreateShiftScreen.js (AGGIORNATO: GESTIONE PAUSA ⏸️)
+// CreateShiftScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator, Switch } from 'react-native';
 import { Feather } from '@expo/vector-icons';

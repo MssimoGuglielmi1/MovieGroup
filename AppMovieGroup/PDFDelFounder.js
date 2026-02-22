@@ -201,7 +201,7 @@ export default function PDFDelFounder({ navigation }) {
                 const userName = userObj ? `${userObj.firstName} ${userObj.lastName}` : "Utente";
                 title = `REPORT_${userName.toUpperCase()}`;
                 
-                q = query(collection(db, "shifts"));
+                q = query(collection(db, "shifts"), where("collaboratorId", "==", selectedUser));
             } 
             else if (type === 'FULL') {
                 // TITOLO DINAMICO (Se -1 scriviamo COMPLETO, altrimenti il Mese)

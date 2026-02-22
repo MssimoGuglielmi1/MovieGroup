@@ -326,6 +326,43 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
     return () => clearInterval(interval);
   }, [myShifts]);
 
+  // --- IL RADAR TATTICO (AGGIORNAMENTO GPS OGNI MINUTO) ---
+  useEffect(() => {
+      // 1. Controlliamo se c'è un turno attivo in questo momento
+      const activeShift = myShifts.find(s => s.status === 'in-corso');
+      let gpsInterval;
+
+      if (activeShift) {
+          // Se c'è un turno attivo, facciamo partire il timer da 1 minuto (60000 ms)
+          gpsInterval = setInterval(async () => {
+              try {
+                  // Verifichiamo di avere ancora i permessi
+                  let { status } = await Location.getForegroundPermissionsAsync();
+                  if (status === 'granted') {
+                      // Peschiamo la posizione attuale con bilanciamento batteria/precisione
+                      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                      
+                      // Aggiorniamo il database in modo silenzioso
+                      await updateDoc(doc(db, "shifts", activeShift.id), {
+                          // Sovrascriviamo startLocation così il tasto "VEDI POSIZIONE LIVE" del Founder 
+                          // punterà sempre all'ultima posizione rilevata
+                          startLocation: { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+                          lastGPSUpdate: new Date().toISOString() // Traccia dell'ultimo ping
+                      });
+                      console.log("📍 RADAR: GPS aggiornato per turno " + activeShift.id);
+                  }
+              } catch (e) {
+                  console.log("Errore Radar GPS:", e);
+              }
+          }, 60000); // 60 secondi
+      }
+
+      // Quando il turno finisce o si chiude l'app, spengiamo il radar
+      return () => {
+          if (gpsInterval) clearInterval(gpsInterval);
+      };
+  }, [myShifts]);
+
   // --- RENDER TIMER ---
   const renderDynamicTimer = (shift) => {
       const scheduledStart = getShiftDates(shift.date, shift.startTime);
