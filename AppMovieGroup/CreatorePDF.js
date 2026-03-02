@@ -55,16 +55,10 @@ const createHTML = (docTitle, shifts, totalAmount, totalHours, reportType) => {
             <table>
               <thead>
               <tr>
-                <th>DATA</th>
-                ${collabHeader}
-                <th>LUOGO</th>
-                <th>ORARIO</th>
-                
-                <th>DURATA</th>
-                <th>PAUSA</th>
-                <th>STATO</th>
-                <th>TARIFFA</th>
-                <th>IMPORTO</th>
+                <th style="width:20%; text-align:left;">DATA CREAZIONE</th>
+                <th style="width:25%; text-align:left;">ASSEGNATO DA</th>
+                <th style="width:25%; text-align:left;">ASSEGNATO A</th>
+                <th style="width:30%; text-align:left;">LUOGO E ORARIO</th>
               </tr>
             </thead>
               <tbody>${rows}</tbody>

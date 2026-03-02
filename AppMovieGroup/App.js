@@ -361,8 +361,13 @@ const handleLogin = async () => {
               {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>{isLogin ? "Accedi" : "Registrati"}</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.linkButton} onPress={() => setIsLogin(!isLogin)}>
-              <Text style={styles.linkText}>{isLogin ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}</Text>
+<TouchableOpacity style={styles.linkButton} onPress={() => setIsLogin(!isLogin)}>
+              <Text style={styles.linkText}>
+                {isLogin ? "Non hai un account? " : "Hai già un account? "}
+                <Text style={{color: '#FFFFFF', fontWeight: 'bold'}}>
+                  {isLogin ? "Registrati" : "Accedi"}
+                </Text>
+              </Text>
             </TouchableOpacity>
 
 {/* --- CABINA DI COMANDO CONTATTI + FIRMA (FOOTER NUOVO) --- */}

@@ -20,10 +20,24 @@ export const calculateFiscalData = (shift) => {
         scheduledEnd.setDate(scheduledEnd.getDate() + 1);
     }
 
-    // 2. Orari Reali (Fallback se mancano i dati reali: usa i previsti)
-    // Se il turno non è ancora iniziato/finito, usiamo i previsti per evitare errori di calcolo
-    const realStart = shift.realStartTime ? new Date(shift.realStartTime) : scheduledStart;
-    const realEnd = shift.realEndTime ? new Date(shift.realEndTime) : scheduledEnd;
+// --- 🛡️ LO SCUDO ANTI-NAN: FUNZIONE INTERNA PER PARSARE DATE MISTE ---
+    const parseRealTime = (timeStr, baseDateStr) => {
+        if (!timeStr) return null;
+        if (timeStr.includes('T') || timeStr.length > 10) return new Date(timeStr); 
+        if (timeStr.includes(':')) {
+            const [y, m, d] = baseDateStr.split('-').map(Number);
+            const [h, min] = timeStr.split(':').map(Number);
+            return new Date(y, m - 1, d, h, min, 0);
+        }
+        return null;
+    };
+
+    // 2. Orari Reali con il nuovo "Scudo di Analisi"
+    const parsedRealStart = parseRealTime(shift.realStartTime, shift.date);
+    const parsedRealEnd = parseRealTime(shift.realEndTime, shift.date);
+
+    const realStart = parsedRealStart ? parsedRealStart : scheduledStart;
+    const realEnd = parsedRealEnd ? parsedRealEnd : scheduledEnd;
 
     // 3. LOGICA FORBICE (Il cuore della fiscalità)
     // INIZIO: Il più tardi tra Reale e Previsto (Niente soldi se arrivi prima, penalità se arrivi dopo)

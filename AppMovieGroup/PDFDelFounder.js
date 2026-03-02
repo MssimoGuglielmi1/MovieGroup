@@ -204,14 +204,13 @@ export default function PDFDelFounder({ navigation }) {
                 q = query(collection(db, "shifts"), where("collaboratorId", "==", selectedUser));
             } 
             else if (type === 'FULL') {
-                // TITOLO DINAMICO (Se -1 scriviamo COMPLETO, altrimenti il Mese)
-                if (selectedMonth === -1) {
+                const safeMonth = Number(selectedMonth); // <--- LA CURA
+                if (safeMonth === -1) {
                     title = "REPORT_TOTALE_COMPLETO";
                 } else {
-                    const monthName = MONTHS[selectedMonth].toUpperCase();
+                    const monthName = MONTHS[safeMonth].toUpperCase();
                     title = `REPORT_TOTALE_${monthName}`;
                 }
-                
                 q = query(collection(db, "shifts"));
             }
             else if (type === 'AUDIT') {
@@ -224,15 +223,16 @@ export default function PDFDelFounder({ navigation }) {
 
             const snapshot = await getDocs(q);
             let finalData = snapshot.docs.map(doc => doc.data());
-            // --- FILTRO MESE (SOLO PER REPORT TOTALE) ---
+
+                // --- FILTRO MESE (SOLO PER REPORT TOTALE) ---
             if (type === 'FULL') {
                 finalData = finalData.filter(shift => {
-                    // SE HO SCELTO "TUTTO" (-1), NON FILTRARE NULLA!
-                    if (selectedMonth === -1) return true; 
+                    const safeMonth = Number(selectedMonth);
+                    if (safeMonth === -1) return true; 
 
                     if (!shift.date) return false;
-                    const shiftDate = new Date(shift.date);
-                    return shiftDate.getMonth() === selectedMonth;
+                    const [year, month, day] = shift.date.split('-').map(Number);
+                    return (month - 1) === safeMonth;
                 });
             }
 
