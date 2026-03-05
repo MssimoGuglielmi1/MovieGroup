@@ -27,6 +27,7 @@ export default function PDFDelFounder({ navigation }) {
     // MESE SELEZIONATO (Default: Mese Corrente)
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedUser, setSelectedUser] = useState('');
+    const [selectedMonthInd, setSelectedMonthInd] = useState(-1);
     const [loading, setLoading] = useState(false);
     const [loadingData, setLoadingData] = useState(true);
 
@@ -196,13 +197,21 @@ export default function PDFDelFounder({ navigation }) {
             let q;
             let title = "";
             
+// 🎯 BISTURI 2: TITOLO E QUERY INDIVIDUALE RIMESSO AL SUO POSTO
             if (type === 'INDIVIDUAL') {
                 const userObj = users.find(u => u.id === selectedUser);
                 const userName = userObj ? `${userObj.firstName} ${userObj.lastName}` : "Utente";
-                title = `REPORT_${userName.toUpperCase()}`;
+                const safeMonthInd = Number(selectedMonthInd);
+
+                if (safeMonthInd === -1) {
+                    title = `REPORT_${userName.toUpperCase()}_COMPLETO`;
+                } else {
+                    const monthName = MONTHS[safeMonthInd].toUpperCase();
+                    title = `REPORT_${userName.toUpperCase()}_${monthName}`;
+                }
                 
                 q = query(collection(db, "shifts"), where("collaboratorId", "==", selectedUser));
-            } 
+            }
             else if (type === 'FULL') {
                 const safeMonth = Number(selectedMonth); // <--- LA CURA
                 if (safeMonth === -1) {
@@ -224,10 +233,11 @@ export default function PDFDelFounder({ navigation }) {
             const snapshot = await getDocs(q);
             let finalData = snapshot.docs.map(doc => doc.data());
 
-                // --- FILTRO MESE (SOLO PER REPORT TOTALE) ---
-            if (type === 'FULL') {
+            // --- FILTRO MESE (REPORT TOTALE E SINGOLO) ---
+            if (type === 'FULL' || type === 'INDIVIDUAL') {
                 finalData = finalData.filter(shift => {
-                    const safeMonth = Number(selectedMonth);
+                    // Seleziona la tendina giusta in base a quale bottone hai premuto
+                    const safeMonth = type === 'FULL' ? Number(selectedMonth) : Number(selectedMonthInd);
                     if (safeMonth === -1) return true; 
 
                     if (!shift.date) return false;
@@ -290,8 +300,8 @@ export default function PDFDelFounder({ navigation }) {
                     <View style={styles.pickerContainer}>
                         {loadingData ? <ActivityIndicator color={Colors.accentCyan} /> : (
                             <Picker 
-                                selectedValue={selectedUser} 
-                                onValueChange={(v) => setSelectedUser(v)} 
+                                selectedValue={String(selectedUser)} 
+                                onValueChange={(v) => setSelectedUser(String(v))} 
                                 dropdownIconColor="#FFF" 
                                 style={{color:'#FFF'}}
                                 itemStyle={{ color: '#FFFFFF' }}
@@ -307,6 +317,26 @@ export default function PDFDelFounder({ navigation }) {
                                 ))}
                             </Picker>
                         )}
+                    </View>
+                    {/* --- NUOVA TENDINA MESE PER REPORT SINGOLO --- */}
+                    <View style={[styles.pickerContainer, {borderColor: Colors.accentCyan, marginBottom:15}]}>
+                        <Picker 
+                            selectedValue={Number(selectedMonthInd)} 
+                            onValueChange={(v) => setSelectedMonthInd(Number(v))} 
+                            dropdownIconColor="#FFF" 
+                            style={{color:'#FFF'}}
+                            itemStyle={{ color: '#FFFFFF' }}
+                        >
+                            <Picker.Item label="TUTTI I MESI" value={-1} color={Colors.accentCyan} />
+                            {MONTHS.map((m, index) => (
+                                <Picker.Item 
+                                    key={index} 
+                                    label={m} 
+                                    value={index} 
+                                    color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} 
+                                />
+                            ))}
+                        </Picker>
                     </View>
 
                     <View style={{flexDirection:'row', gap:10}}>
@@ -330,8 +360,8 @@ export default function PDFDelFounder({ navigation }) {
                 {/* TENDINA MESI (Post-it 2) */}
                     <View style={[styles.pickerContainer, {borderColor: Colors.accentGreen, marginBottom:15}]}>
                         <Picker 
-                            selectedValue={selectedMonth} 
-                            onValueChange={(v) => setSelectedMonth(v)} 
+                            selectedValue={Number(selectedMonth)} 
+                            onValueChange={(v) => setSelectedMonth(Number(v))} 
                             dropdownIconColor="#FFF" 
                             style={{color:'#FFF'}}
                             itemStyle={{ color: '#FFFFFF' }}
