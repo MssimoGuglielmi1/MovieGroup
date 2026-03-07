@@ -634,6 +634,27 @@ const onStartShift = async (s) => {
             <Feather name="chevron-right" size={24} color="#BF5AF2" />
         </TouchableOpacity>
 
+        {/* --- BOTTONE BUSTE PAGA (ADMIN) --- */}
+        <TouchableOpacity
+            style={{
+                backgroundColor: '#1C1C1E', borderRadius: 16, padding: 16, flexDirection: 'row',
+                alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: 0,
+                borderWidth: 1, borderColor: '#EAB308'
+            }}
+            onPress={() => navigation.navigate('GestioneBustePaga')} 
+        >
+            <View style={{flexDirection:'row', alignItems:'center'}}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(234, 179, 8, 0.2)' }}>
+                    <Feather name="file-text" size={24} color="#EAB308" />
+                </View>
+                <View style={{marginLeft: 15}}>
+                    <Text style={{fontSize: 16, fontWeight: 'bold', color: '#EAB308', marginBottom: 2}}>BUSTE PAGA</Text>
+                    <Text style={{fontSize: 12, color: '#8E8E93'}}>Invia o scarica i documenti dello staff.</Text>
+                </View>
+            </View>
+            <Feather name="chevron-right" size={24} color="#EAB308" />
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.mainFab} onPress={handleCreateShift}>
           <Feather name="plus" size={24} color="#000" />
           <Text style={styles.fabText}>ASSEGNA UN TURNO</Text>

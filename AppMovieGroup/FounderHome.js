@@ -401,6 +401,18 @@ return (
             <Feather name="chevron-right" size={24} color={Colors.accentCyan} />
         </TouchableOpacity>
 
+        {/* >>> NUOVO BOTTONE BUSTE PAGA E DOCUMENTI <<< */}
+        <TouchableOpacity style={styles(Colors).wideWidget} onPress={() => navigation.navigate('GestioneBustePaga')}>
+            <View style={{flexDirection:'row', alignItems:'center'}}>
+                <View style={[styles(Colors).iconCircle, {backgroundColor: Colors.warning+'20'}]}><Feather name="file-text" size={24} color={Colors.warning} /></View>
+                <View style={{marginLeft: 15}}>
+                    <Text style={[styles(Colors).widgetTitle, {color: Colors.warning}]}>BUSTE PAGA E DOCUMENTI</Text>
+                    <Text style={styles(Colors).widgetSubtitle}>Invia o consulta i documenti dello staff</Text>
+                </View>
+            </View>
+            <Feather name="chevron-right" size={24} color={Colors.warning} />
+        </TouchableOpacity>
+
 {/* --- ACTION BAR COMPATTA (Settings + Nuovo Turno) --- */}
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 15, marginBottom: 10 }}>
             

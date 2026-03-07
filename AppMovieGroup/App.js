@@ -561,6 +561,7 @@ useEffect(() => {
             onNavigateHistory={() => setScreenOverride('CollaboratorHistory')}
             onNavigateProfile={() => setScreenOverride('CamerinoStaff')}
             onNavigateBoard={() => setScreenOverride('Board')}
+            onNavigateBustePaga={() => setScreenOverride('GestioneBustePaga')}
         />
     );
   }

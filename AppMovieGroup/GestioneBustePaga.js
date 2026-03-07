@@ -27,46 +27,59 @@ export default function GestioneBustePaga({ navigation }) {
 
     const currentUser = auth.currentUser;
 
-    // --- 1. IDENTIFICAZIONE E LETTURA DATI ---
+// --- 1. IDENTIFICAZIONE E LETTURA DATI (Corazzata) ---
     useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = () => {}; // Per spegnere il radar quando usciamo
+
         const init = async () => {
-            // Chi sono io?
-            const userSnap = await getDoc(doc(db, "users", currentUser.uid));
-            let myRole = 'COLLABORATORE';
-            if (userSnap.exists()) myRole = userSnap.data().role;
-            setRole(myRole);
+            try {
+                // Chi sono io?
+                const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+                let myRole = 'COLLABORATORE';
+                if (userSnap.exists()) myRole = userSnap.data().role;
+                setRole(myRole);
 
-            // Se sono un capo, mi serve la lista dello staff per scegliere a chi mandare il PDF
-            if (myRole === 'FOUNDER' || myRole === 'AMMINISTRATORE') {
-                const qUsers = query(collection(db, "users"), where("isApproved", "==", true));
-                const snapUsers = await getDocs(qUsers);
-                const staffList = snapUsers.docs
-                    .map(d => ({ id: d.id, ...d.data() }))
-                    .filter(u => u.role !== 'FOUNDER') // Non mando la busta a me stesso
-                    .sort((a, b) => (a.lastName || '').localeCompare(b.lastName || ''));
-                setUsers(staffList);
+                // Se sono un capo, mi serve la lista dello staff per scegliere a chi mandare il PDF
+                if (myRole === 'FOUNDER' || myRole === 'AMMINISTRATORE') {
+                    const qUsers = query(collection(db, "users"), where("isApproved", "==", true));
+                    const snapUsers = await getDocs(qUsers);
+                    const staffList = snapUsers.docs
+                        .map(d => ({ id: d.id, ...d.data() }))
+                        .filter(u => u.role !== 'FOUNDER') // Non mando la busta a me stesso
+                        .sort((a, b) => (a.lastName || '').localeCompare(b.lastName || ''));
+                    setUsers(staffList);
+                }
+
+                // Che buste paga devo vedere?
+                let qBuste;
+                if (myRole === 'FOUNDER' || myRole === 'AMMINISTRATORE') {
+                    qBuste = query(collection(db, "buste_paga"), orderBy("uploadedAt", "desc"));
+                } else {
+                    qBuste = query(collection(db, "buste_paga"), where("collaboratorId", "==", currentUser.uid), orderBy("uploadedAt", "desc"));
+                }
+
+                // Chiediamo i dati a Firebase
+                unsub = onSnapshot(qBuste, (snap) => {
+                    setBuste(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    setLoading(false); // Se va bene, spegne la rotellina
+                }, (error) => {
+                    console.log("Errore Firestore:", error);
+                    alert("Avviso Database: " + error.message); 
+                    setLoading(false); // Se c'è errore, spegne la rotellina e ti avvisa!
+                });
+
+            } catch (error) {
+                console.log("Errore Init:", error);
+                alert("Errore di caricamento: " + error.message);
+                setLoading(false); // Spegne la rotellina se c'è un guasto generico
             }
-
-            // Che buste paga devo vedere?
-            // Se sono il Capo -> Vedo TUTTE quelle inviate. Se sono Dipendente -> Vedo SOLO le mie.
-            let qBuste;
-            if (myRole === 'FOUNDER' || myRole === 'AMMINISTRATORE') {
-                qBuste = query(collection(db, "buste_paga"), orderBy("uploadedAt", "desc"));
-            } else {
-                qBuste = query(collection(db, "buste_paga"), where("collaboratorId", "==", currentUser.uid), orderBy("uploadedAt", "desc"));
-            }
-
-            const unsub = onSnapshot(qBuste, (snap) => {
-                setBuste(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                setLoading(false);
-            });
-
-            return () => unsub();
         };
 
         init();
+
+        return () => unsub();
     }, [currentUser]);
 
     // --- 2. CARICA IL PDF (SOLO ADMIN/FOUNDER) ---

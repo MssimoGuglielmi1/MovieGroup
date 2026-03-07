@@ -26,7 +26,7 @@ const ColorSchemes = {
     }
 };
 
-export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile, onNavigateBoard }) {
+export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile, onNavigateBoard, onNavigateBustePaga }) {
   const [theme, setTheme] = useState('dark');
   const CurrentColors = ColorSchemes[theme];
   // const styles = getStyles(CurrentColors); <--- SPOSTATO DOPO LA DEFINIZIONE DI getStyles
@@ -478,6 +478,8 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                 <View style={{marginLeft: 15}}>
                     <View style={{flexDirection:'row', alignItems:'center'}}>
                         <Text style={[styles.widgetTitle, {color: Colors.purple}]}>BACHECA TURNI</Text>
+
+                        
                         
                         {/* 🔴 PALLINO ROSSO (Appare solo se ci sono nuovi post) */}
                         {boardCount > 0 && (
@@ -496,6 +498,23 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                 </View>
             </View>
             <Feather name="chevron-right" size={24} color={Colors.purple} />
+        </TouchableOpacity>
+
+        {/* --- BOTTONE BUSTE PAGA (COLLABORATORE) --- */}
+        <TouchableOpacity
+            style={[styles.historyWidget, {borderColor: Colors.yellow, borderWidth: 1, marginTop: 10}]}
+            onPress={() => { if (onNavigateBustePaga) onNavigateBustePaga(); }}
+        >
+            <View style={{flexDirection:'row', alignItems:'center'}}>
+                <View style={[styles.iconCircle, {backgroundColor: Colors.yellow + '20'}]}>
+                    <Feather name="file-text" size={24} color={Colors.yellow} />
+                </View>
+                <View style={{marginLeft: 15}}>
+                    <Text style={[styles.widgetTitle, {color: Colors.yellow}]}>I MIEI DOCUMENTI</Text>
+                    <Text style={styles.widgetSubtitle}>Scarica le tue buste paga o contratti</Text>
+                </View>
+            </View>
+            <Feather name="chevron-right" size={24} color={Colors.yellow} />
         </TouchableOpacity>
 
 {/* --- SEZIONE 1: INVITI (Si vede solo se ce ne sono) --- */}
