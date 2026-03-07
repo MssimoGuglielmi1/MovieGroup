@@ -1,8 +1,10 @@
-import { initializeApp } from 'firebase/app'; // RIGA 1 fiebaseConfig.js
+// fiebaseConfig.js
+import { initializeApp } from 'firebase/app'; 
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from "firebase/storage";
 
-const firebaseConfig = { // RIGA 5
+const firebaseConfig = { // RIGA 7
   apiKey: "AIzaSyDabE-cLYKEwKNniqml9tusvnc6EGkVFHA",
   authDomain: "moviegroup-60985.firebaseapp.com",
   projectId: "moviegroup-60985",
@@ -12,14 +14,13 @@ const firebaseConfig = { // RIGA 5
   measurementId: "G-8V1HF5K2L8"
 };
 
-// Inizializza Firebase RIGA 15
+// Inizializza Firebase RIGA 17
 const app = initializeApp(firebaseConfig);
-
-// Prepara il modulo di Autenticazione RIGA 18 (Login/Registrazione)
+// Prepara il modulo di Autenticazione RIGA 20 (Login/Registrazione)
 const auth = getAuth(app);
-
 // Esportiamo 'auth' per poterlo usare nelle altre pagine RIGA 19
 const db = getFirestore(app);
 export { auth, db };
+export const storage = getStorage(app);
 
  

@@ -200,9 +200,12 @@ export default function AdminStaffScreen({ navigation, route }) {
         const newRole = user.role === 'AMMINISTRATORE' ? 'COLLABORATORE' : 'AMMINISTRATORE';
         
         const executeSwitch = async () => {
-            try { 
-                // Prepariamo gli aggiornamenti
-                const updates = { role: newRole };
+                try { 
+                // Prepariamo gli aggiornamenti e DISTRUGGIAMO eventuali richieste fantasma
+                const updates = { 
+                    role: newRole,
+                    adminRequest: false // <--- IL COLPO DI GRAZIA
+                };
                 
                 // SE STIAMO RETROCEDENDO A COLLABORATORE:
                 // Resettiamo hideMoney a false
@@ -210,7 +213,7 @@ export default function AdminStaffScreen({ navigation, route }) {
                     updates.hideMoney = false;
                 }
 
-                await updateDoc(doc(db, "users", user.id), updates); 
+                await updateDoc(doc(db, "users", user.id), updates);
             } catch(e) { 
                 if (Platform.OS === 'web') alert("Errore: " + e.message);
                 else Alert.alert("Errore", e.message); 

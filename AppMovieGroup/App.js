@@ -37,8 +37,10 @@ import TurnoDimenticato from './TurnoDimenticato';
 import CollaboratorHistoryScreen from './CollaboratorHistoryScreen';
 import ModificaTurno from './ModificaTurno';
 import CamerinoStaff from './CamerinoStaff';
+import GestioneBustePaga from './GestioneBustePaga';
 import AvvioApp from './AvvioApp';
 import { sendPushNotification } from './Notifiche';
+
 
 // --- IMPORT FIREBASE ---
 import {
@@ -543,6 +545,7 @@ useEffect(() => {
   if (screenOverride === 'ShiftManagementScreen') return <ShiftManagementScreen navigation={{ goBack: handleGoBack, navigate: handleNavigate }} route={{ params: shiftCreationParams }} />;
   if (screenOverride === 'CamerinoStaff') return <CamerinoStaff navigation={{ goBack: handleGoBack }} />;
   if (screenOverride === 'StoricoFounder') return <StoricoFounder navigation={{ goBack: handleGoBack }} />;
+  if (screenOverride === 'GestioneBustePaga') return <GestioneBustePaga navigation={{ goBack: handleGoBack }} />;
 
   // HOME PAGE
   if (userRole === "FOUNDER") return <FounderHome navigation={{ navigate: handleNavigate }} />;
