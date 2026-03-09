@@ -14,13 +14,12 @@ const Colors = {
 };
 
 // --- COMPONENTE SPOSTATO FUORI (COSI NON SI RICARICA OGNI VOLTA) ---
-const EditableField = ({ label, value, onChange, placeholder, isSecure = false, keyboard = 'default' }) => {
-    // 1. Definiamo cosa NON è obbligatorio
+const EditableField = ({ label, value, onChange, placeholder, isSecure = false, keyboard = 'default', autoComplete = 'on' }) => {
+    // Stato locale per mostrare/nascondere la password
+    const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+    
     const isOptional = label.includes("Facoltativo");
     const isPasswordField = label.includes("Password");
-
-    // 2. Il campo è "mancante" solo se: 
-    // NON è opzionale AND NON è una password AND è effettivamente vuoto
     const isMissing = !isOptional && !isPasswordField && (!value || value.trim() === '');
 
     return (
@@ -28,7 +27,7 @@ const EditableField = ({ label, value, onChange, placeholder, isSecure = false, 
             <Text style={styles.label}>{label}</Text>
             <View style={[
                 styles.inputWrapper, 
-                isMissing && { borderColor: Colors.error, borderWidth: 1.5 } // Rosso solo se mancano dati vitali
+                isMissing && { borderColor: Colors.error, borderWidth: 1.5 }
             ]}>
                 <TextInput
                     style={styles.inputWithIcon}
@@ -36,16 +35,36 @@ const EditableField = ({ label, value, onChange, placeholder, isSecure = false, 
                     placeholderTextColor={Colors.textSub}
                     value={value}
                     onChangeText={onChange}
-                    secureTextEntry={isSecure}
+                    // Se è un campo password, usiamo lo stato per decidere se nascondere
+                    secureTextEntry={isPasswordField ? !isPasswordVisible : false}
                     keyboardType={keyboard}
                     autoCapitalize={label.includes("Email") || isPasswordField ? "none" : "sentences"}
+                    // --- 🛡️ AGGIUNGI QUESTE 3 RIGHE PER BLOCCARE L'AUTOFILL ---
+    autoComplete="off"
+    textContentType="none"
+    importantForAutofill="no"
                 />
-                <Feather 
-                    name={isMissing ? "alert-circle" : "edit-3"} 
-                    size={18} 
-                    color={isMissing ? Colors.error : Colors.pencil} 
-                    style={styles.pencilIcon} 
-                />
+                
+                {/* TASTO OCCHIOLINO (Solo se è un campo password) */}
+                {isPasswordField ? (
+                    <TouchableOpacity 
+                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                        style={styles.pencilIcon}
+                    >
+                        <Feather 
+                            name={isPasswordVisible ? "eye" : "eye-off"} 
+                            size={18} 
+                            color={Colors.pencil} 
+                        />
+                    </TouchableOpacity>
+                ) : (
+                    <Feather 
+                        name={isMissing ? "alert-circle" : "edit-3"} 
+                        size={18} 
+                        color={isMissing ? Colors.error : Colors.pencil} 
+                        style={styles.pencilIcon} 
+                    />
+                )}
             </View>
         </View>
     );
@@ -65,6 +84,8 @@ export default function CamerinoStaff({ navigation }) {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [codiceFiscale, setCodiceFiscale] = useState('');
     const [iban, setIban] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
    
     // Password
     const [newPassword, setNewPassword] = useState('');
@@ -78,6 +99,8 @@ export default function CamerinoStaff({ navigation }) {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     setUserData(data);
+                    setFirstName(data.firstName || '');
+                    setLastName(data.lastName || '');
                     setNickname(data.nickname || '');
                     setPhoneNumber(data.phoneNumber || '');
                     setCodiceFiscale(data.codiceFiscale || '');
@@ -89,46 +112,156 @@ export default function CamerinoStaff({ navigation }) {
         fetchUserData();
     }, []);
 
-    const handleSave = async () => {
+const handleSave = async () => {
         Keyboard.dismiss();
-       
-        // Controllo Password
-        if (newPassword || confirmPassword) {
-            if (newPassword !== confirmPassword) {
-                Alert.alert("Errore", "Le password non coincidono.");
+        
+        // 1. PULIZIA E CONTROLLO PASSWORD 🔐
+        const cleanPw = newPassword.trim();
+        const cleanConfirm = confirmPassword.trim();
+
+        if (cleanPw !== '' || cleanConfirm !== '') {
+            if (cleanPw !== cleanConfirm) {
+                const msg = "Le password inserite non coincidono. Controlla bene!";
+                if (Platform.OS === 'web') alert(msg);
+                else Alert.alert("Errore", msg);
                 return;
             }
-            if (newPassword.length < 6) {
-                Alert.alert("Errore", "La password deve essere di almeno 6 caratteri.");
+            
+            if (cleanPw.length < 6) {
+                const msg = "La password deve essere di almeno 6 caratteri.";
+                if (Platform.OS === 'web') alert(msg);
+                else Alert.alert("Errore", msg);
                 return;
             }
+
             try {
-                await updatePassword(auth.currentUser, newPassword);
+                await updatePassword(auth.currentUser, cleanPw);
             } catch (error) {
-                Alert.alert("Errore Sicurezza", "Per cambiare la password devi aver fatto il login di recente. Esci e rientra.");
+                const msg = "Errore Sicurezza: Per cambiare la password devi aver fatto il login di recente. Effettua nuovamente l'accesso.";
+                if (Platform.OS === 'web') alert(msg);
+                else Alert.alert("Errore", msg);
                 return;
             }
         }
 
+        // 2. AGGIORNAMENTO DATI (LOGICA CHIRURGICA) 🧹
         setSaving(true);
         try {
-            await updateDoc(doc(db, "users", auth.currentUser.uid), {
-                nickname: nickname,
-                phoneNumber: phoneNumber,
-                codiceFiscale: codiceFiscale.toUpperCase(),
-                iban: iban.toUpperCase()
-            });
-           
+
+            const handleSave = async () => {
+    Keyboard.dismiss();
+    setSaving(true);
+
+    try {
+        
+// 1. PULIZIA DATI
+        const cleanCF = codiceFiscale.trim().toUpperCase().replace(/\s/g, '');
+
+        // 2. REGEX VALIDAZIONE CODICE FISCALE (16 caratteri specifici) 🛡️
+        const cfRegex = /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/;
+
+        // Controllo se il campo è vuoto
+        if (cleanCF === '') {
+            const msg = "Il Codice Fiscale è obbligatorio.";
+            Platform.OS === 'web' ? alert(msg) : Alert.alert("Dato Mancante", msg);
+            setSaving(false);
+            return;
+        }
+
+        // Controllo se il formato è errato (blocca "caccola")
+        if (!cfRegex.test(cleanCF)) {
+            const msg = "Codice Fiscale non valido. Deve essere di 16 caratteri nel formato corretto.";
+            Platform.OS === 'web' ? alert(msg) : Alert.alert("Errore Formato", msg);
+            setSaving(false);
+            return;
+        }
+
+        // 1. PULIZIA E VALIDAZIONE IBAN 🛡️
+        const cleanIban = iban.trim().toUpperCase().replace(/\s/g, '');
+
+        // REGEX IBAN ITALIANO: IT + 2 numeri + 1 lettera + 22 caratteri alfanumerici
+        const ibanRegex = /^IT[0-9]{2}[A-Z][0-9]{10}[A-Z0-9]{12}$/;
+
+        if (cleanIban === '') {
+            const msg = "L'IBAN è obbligatorio per ricevere i pagamenti.";
+            if (Platform.OS === 'web') alert(msg); else Alert.alert("Campo Mancante", msg);
+            setSaving(false);
+            return;
+        }
+
+        if (!ibanRegex.test(cleanIban)) {
+            const msg = "L'IBAN inserito non è nel formato corretto (es. IT60...). Controlla di non aver inserito email o parole a caso.";
+            if (Platform.OS === 'web') alert(msg); else Alert.alert("IBAN Non Valido", msg);
+            setSaving(false);
+            return;
+        }
+
+        // Se passa i controlli, prepariamo i dati per il database
+        const updateData = {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            codiceFiscale: cleanCF,
+            iban: cleanIban, // Salviamo la versione pulita e in maiuscolo
+            // ... altri campi
+        };
+
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        await updateDoc(userRef, updateData);
+        
+        // ... (resto della logica di successo)
+    } catch (error) {
+        setSaving(false);
+        // ... gestione errori
+    }
+};
+            // Prepariamo solo i dati minimi obbligatori
+            const updateData = {
+                firstName: firstName.trim(),
+                lastName: lastName.trim()
+            };
+
+            // Aggiungiamo i campi opzionali SOLO se non sono vuoti (così non salviamo stringhe "")
+            if (nickname && nickname.trim() !== '') updateData.nickname = nickname.trim();
+            if (phoneNumber && phoneNumber.trim() !== '') updateData.phoneNumber = phoneNumber.trim();
+
+            // 👮 BLOCCO ANTI-MAIL NELL'IBAN
+            if (iban && iban.includes('@')) {
+                const errorMsg = "Errore: Stai provando a salvare una mail nel campo IBAN!";
+                if (Platform.OS === 'web') alert(errorMsg);
+                else Alert.alert("Dati Errati", errorMsg);
+                setSaving(false);
+                return;
+            }
+
+            if (codiceFiscale && codiceFiscale.trim() !== '') {
+                updateData.codiceFiscale = codiceFiscale.trim().toUpperCase();
+            }
+            
+            if (iban && iban.trim() !== '') {
+                updateData.iban = iban.trim().toUpperCase();
+            }
+
+            // Inviamo l'aggiornamento a Firestore
+            const userRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userRef, updateData);
+            
+            // Aggiorniamo la vista locale
+            setUserData(prev => ({ ...prev, ...updateData }));
+
+            // Resettiamo i campi password e confermiamo il successo
             setNewPassword('');
             setConfirmPassword('');
-
             setSaving(false);
             setSaveSuccess(true);
+            
+            if (Platform.OS === 'web') alert("Profilo aggiornato con successo! ✅");
             setTimeout(() => setSaveSuccess(false), 3000);
 
         } catch (error) {
             setSaving(false);
-            Alert.alert("Errore", "Impossibile salvare i dati.");
+            const errorMsg = "Errore durante il salvataggio: " + error.message;
+            if (Platform.OS === 'web') alert(errorMsg);
+            else Alert.alert("Errore", errorMsg);
         }
     };
 
@@ -147,26 +280,39 @@ export default function CamerinoStaff({ navigation }) {
                
                 <View style={[styles.bigCard, saveSuccess && {borderColor: Colors.success}]}>
                    
-                    {/* PARTE FISSA */}
-                    <View style={styles.readOnlySection}>
-                        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
-                            <View>
-                                <Text style={styles.label}>Nome Completo</Text>
-                                <Text style={styles.staticValue}>{userData.firstName} {userData.lastName}</Text>
-                               
-                                <Text style={styles.label}>Email</Text>
-                                <Text style={styles.staticValue}>{userData.email}</Text>
-                            </View>
-                            <View style={styles.roleBadge}>
-                                <Text style={styles.roleText}>{userData.role}</Text>
-                            </View>
-                        </View>
-                    </View>
+{/* PARTE FISSA (Solo Email e Ruolo) */}
+    <View style={styles.readOnlySection}>
+        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+            <View>
+                <Text style={styles.label}>Email</Text>
+                <Text style={styles.staticValue}>{userData.email}</Text>
+            </View>
+            <View style={styles.roleBadge}>
+                <Text style={styles.roleText}>{userData.role}</Text>
+            </View>
+        </View>
+    </View>
 
-                    <View style={styles.divider} />
+    <View style={styles.divider} />
+
+    {/* PARTE MODIFICABILE */}
+    <Text style={styles.sectionHeader}>DATI MODIFICABILI 🖋️</Text>
+
+    <EditableField
+        label="Nome"
+        value={firstName}
+        onChange={setFirstName}
+        placeholder="Inserisci Nome"
+    />
+
+    <EditableField
+        label="Cognome"
+        value={lastName}
+        onChange={setLastName}
+        placeholder="Inserisci Cognome"
+    />
 
                     {/* PARTE MODIFICABILE */}
-                    <Text style={styles.sectionHeader}>DATI MODIFICABILI 🖋️</Text>
 
                     <EditableField
                         label="Soprannome (Facoltativo)"
@@ -195,11 +341,14 @@ export default function CamerinoStaff({ navigation }) {
                         value={iban}
                         onChange={setIban}
                         placeholder="IT..."
+                        autoComplete="off"
+                        textContentType="none"
+                        importantForAutofill="no"
                     />
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionHeader}>CAMBIA PW 🔐</Text>
+                    <Text style={styles.sectionHeader}>CAMBIA/CONFERMA PW 🔐</Text>
 
                     <EditableField
                         label="Nuova Password"

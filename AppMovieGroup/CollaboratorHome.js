@@ -234,7 +234,11 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
           }
 
 // 3. Se permesso OK, prendiamo posizione
-          let loc = await Location.getCurrentPositionAsync({});
+          let loc = await Location.getCurrentPositionAsync({ 
+    accuracy: Location.Accuracy.High, // Obbliga l'uso del GPS satellitare
+    timeout: 15000,                  // Attende fino a 15 secondi per un segnale preciso
+    maximumAge: 1000                 // Non accetta posizioni salvate in cache più vecchie di 1 secondo
+});
 
           // --- CALCOLO ORA ATTUALE (HH:MM) PER EXCEL ---
           const now = new Date();
@@ -340,7 +344,7 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                   let { status } = await Location.getForegroundPermissionsAsync();
                   if (status === 'granted') {
                       // Peschiamo la posizione attuale con bilanciamento batteria/precisione
-                      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
                       
                       // Aggiorniamo il database in modo silenzioso
                       await updateDoc(doc(db, "shifts", activeShift.id), {
@@ -657,7 +661,7 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
                   <Feather name="user-plus" size={40} color={Colors.yellow} />
                   <Text style={styles.warningTitle}>PROFILO INCOMPLETO ⚠️</Text>
                   <Text style={styles.warningText}>
-                      Il tuo profilo è attualmente "INCOMPLETO", ricordati di compilare i campi evidenziati in rosso, ORA o più tardi.
+                      Il tuo profilo è attualmente "INCOMPLETO", ricordati di compilare tutti i campi evidenziati in rosso nella sezione "Profilo e Dati", ORA o più tardi.
                   </Text>
                   <TouchableOpacity 
                       style={styles.warningBtn} 

@@ -71,12 +71,23 @@ export default function StoricoFounder({ navigation }) {
     };
 
     // --- 3. CANCELLAZIONE SINGOLA (MANTENUTA - Long Press) ---
-    const handleSingleDelete = (item) => {
-        if (isSelectionMode) return; // Se stai selezionando, il long press è disattivato per non fare confusione
+const handleSingleDelete = (item) => {
+    if (isSelectionMode) return; // Disattivato in modalità selezione
 
+    const title = "ELIMINARE TURNO? ⚠️";
+    const message = `Vuoi cancellare definitivamente il turno di ${item.collaboratorName} del ${item.date}? Sparirà dal database.`;
+
+    // CONTROLLO COMPATIBILITÀ WEB 🌐
+    if (Platform.OS === 'web') {
+        if (confirm(`${title}\n\n${message}`)) {
+            deleteDoc(doc(db, "shifts", item.id))
+                .catch(e => alert("Errore: " + e.message));
+        }
+    } else {
+        // FUNZIONAMENTO STANDARD PER APP MOBILE 📱
         Alert.alert(
-            "ELIMINARE TURNO? ⚠️",
-            `Vuoi cancellare definitivamente il turno di ${item.collaboratorName} del ${item.date}? Sparirà dal database.`,
+            title,
+            message,
             [
                 { text: "Annulla", style: "cancel" },
                 { 
@@ -90,7 +101,8 @@ export default function StoricoFounder({ navigation }) {
                 }
             ]
         );
-    };
+    }
+};
 
     // --- 4. CANCELLAZIONE DI MASSA (NUOVA FUNZIONE) ---
     const handleBulkDelete = () => {

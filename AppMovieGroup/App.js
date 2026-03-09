@@ -61,6 +61,7 @@ const AuthScreen = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
@@ -119,26 +120,29 @@ const isValidEmail = (email) => {
 
 const handleRegister = async () => {
     // A. CONTROLLO CAMPI VUOTI
-    if (!email || !password || !confirmPassword || !firstName || !lastName) { 
-        showAlert("Attenzione", "Compila tutti i campi obbligatori (Nome, Cognome, Email, Password)."); 
+    if (!email || !password || !confirmPassword || !firstName || !lastName || !phoneNumber) { 
+        showAlert("Attenzione", "Compila tutti i campi obbligatori (Nome, Cognome, Numero Telefono, Email, Password)."); 
         return; 
     }
-
     // B. CONTROLLO FORMATO EMAIL
 if (!isValidEmail(email)) {
         showAlert("Email Non Supportata", "Per sicurezza accettiamo solo email classiche (Gmail, Libero, Hotmail, Yahoo, ecc).\n\nSe hai una mail aziendale particolare, contattaci.");
         return;
     }
-
     // C. CONTROLLO PASSWORD DIVERSE
     if (password !== confirmPassword) { 
         showAlert("Errore Password", "Le due password inserite NON coincidono.\nRiprova."); 
         return; 
     }
-
     // D. CONTROLLO LUNGHEZZA
     if (password.length < 6) {
         showAlert("Password Debole", "La password deve avere almeno 6 caratteri.");
+        return;
+    }
+    // E CONTROLLO NUMERO (Solo numeri, minimo 8 cifre)
+    const phoneRegex = /^\+?[0-9]{8,15}$/;
+    if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
+        showAlert("Numero Errato", "Inserisci un numero di telefono valido (solo cifre).");
         return;
     }
 
@@ -152,6 +156,7 @@ if (!isValidEmail(email)) {
         await setDoc(doc(db, "users", user.uid), {
             lastName: lastName.trim(),
             firstName: firstName.trim(),
+            phoneNumber: phoneNumber.trim(),
             email: user.email,
             role: role,
             isApproved: isApproved,
@@ -327,6 +332,17 @@ const handleLogin = async () => {
                 <TextInput style={styles.input} placeholder="Es.TuoNome" placeholderTextColor="#64748b" value={firstName} onChangeText={setFirstName}/>
                 <Text style={styles.label}>Cognome</Text>
                 <TextInput style={styles.input} placeholder="Es.TuoCognome" placeholderTextColor="#64748b" value={lastName} onChangeText={setLastName}/>
+
+                {/* --- NUOVO CAMPO TELEFONO --- */}
+    <Text style={styles.label}>Numero di Telefono</Text>
+    <TextInput 
+        style={styles.input} 
+        placeholder="Es. +39 333 1234567" 
+        placeholderTextColor="#64748b" 
+        value={phoneNumber} 
+        onChangeText={setPhoneNumber}
+        keyboardType="phone-pad"
+    />
 
                 <Text style={styles.label}>Conferma Password</Text>
                 <View style={styles.passwordContainer}>

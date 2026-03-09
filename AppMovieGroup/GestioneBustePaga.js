@@ -6,6 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Picker } from '@react-native-picker/picker';
+import { sendPushNotification } from './Notifiche';
 
 // Importiamo il database e il magazzino
 import { auth, db, storage } from './firebaseConfig';
@@ -83,76 +84,114 @@ export default function GestioneBustePaga({ navigation }) {
     }, [currentUser]);
 
     // --- 2. CARICA IL PDF (SOLO ADMIN/FOUNDER) ---
-    const handleUploadPDF = async () => {
-        if (!selectedUser) {
-            Alert.alert("Attenzione", "Devi prima selezionare un dipendente dal menu a tendina!");
-            return;
-        }
+const handleUploadPDF = async () => {
+    if (!selectedUser) {
+        Alert.alert("Attenzione", "Devi prima selezionare un dipendente dal menu a tendina!");
+        return;
+    }
 
+    try {
+        const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+        if (result.canceled) return;
+
+        const file = result.assets[0];
+        setUploading(true);
+
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+
+        const collabData = users.find(u => u.id === selectedUser);
+        const collabName = `${collabData.firstName} ${collabData.lastName}`;
+        const uniqueFileName = `${Date.now()}_${file.name}`;
+        
+        const storageRef = ref(storage, `buste_paga/${selectedUser}/${uniqueFileName}`);
+        const metadata = {
+    contentDisposition: `attachment; filename="${file.name}"`,
+    contentType: 'application/pdf'
+};
+        await uploadBytes(storageRef, blob, metadata);
+
+        const downloadUrl = await getDownloadURL(storageRef);
+
+        // 1. Salvataggio nel Database
+        await addDoc(collection(db, "buste_paga"), {
+            collaboratorId: selectedUser,
+            collaboratorName: collabName,
+            fileName: file.name,
+            storagePath: storageRef.fullPath,
+            downloadUrl: downloadUrl,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: currentUser.uid
+        });
+
+        // 2. 🔔 INVIO NOTIFICA (Aggiungi questo blocco qui)
         try {
-            // 1. Apri la galleria/file del telefono (Filtro solo PDF)
-            const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
-            if (result.canceled) return; // L'utente ha chiuso senza scegliere
-
-            const file = result.assets[0];
-            setUploading(true);
-
-            // 2. Prepara il file per il viaggio (Funziona sia su Web che su Telefono)
-            const response = await fetch(file.uri);
-            const blob = await response.blob();
-
-            // 3. Spedisci al Magazzino (Storage)
-            const collabData = users.find(u => u.id === selectedUser);
-            const collabName = `${collabData.firstName} ${collabData.lastName}`;
-            const uniqueFileName = `${Date.now()}_${file.name}`;
-            
-            const storageRef = ref(storage, `buste_paga/${selectedUser}/${uniqueFileName}`);
-            await uploadBytes(storageRef, blob);
-
-            // 4. Prendi il Link Segreto
-            const downloadUrl = await getDownloadURL(storageRef);
-
-            // 5. Salva il Link nel Database (Firestore)
-            await addDoc(collection(db, "buste_paga"), {
-                collaboratorId: selectedUser,
-                collaboratorName: collabName,
-                fileName: file.name,
-                storagePath: storageRef.fullPath,
-                downloadUrl: downloadUrl,
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: currentUser.uid
-            });
-
-            if (Platform.OS === 'web') alert("Busta paga inviata con successo!");
-            else Alert.alert("Fatto!", "Busta paga inviata con successo!");
-
-            setSelectedUser(''); // Resetta la tendina
-
-        } catch (error) {
-            console.error(error);
-            Alert.alert("Errore", "Impossibile caricare il file.");
-        } finally {
-            setUploading(false);
+            const targetUserSnap = await getDoc(doc(db, "users", selectedUser));
+            if (targetUserSnap.exists()) {
+                const targetData = targetUserSnap.data();
+                if (targetData.expoPushToken) {
+                    await sendPushNotification(
+                        targetData.expoPushToken,
+                        "📄 Nuovo Documento",
+                        `Ciao ${targetData.firstName}, è stata caricata una nuova busta paga nel tuo archivio.`
+                    );
+                }
+            }
+        } catch (err) {
+            console.log("Errore invio notifica:", err);
         }
-    };
 
-    // --- 3. SCARICA IL PDF ---
+        if (Platform.OS === 'web') alert("Busta paga inviata con successo!");
+        else Alert.alert("Fatto!", "Busta paga inviata con successo!");
+
+        setSelectedUser('');
+
+    } catch (error) {
+        console.error(error);
+        Alert.alert("Errore", "Impossibile caricare il file.");
+    } finally {
+        setUploading(false);
+    }
+};
+
+// --- 3. SCARICA IL PDF (VERSIONE CHIRURGICA) ---
     const handleDownload = async (busta) => {
         if (Platform.OS === 'web') {
-            // SU PC: Apri una nuova scheda col PDF
-            window.open(busta.downloadUrl, '_blank');
+            try {
+                // Scarichiamo il file come "blob" per forzare il browser al download
+                const response = await fetch(busta.downloadUrl);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                // Usiamo il nome originale del file salvato nel database
+                link.setAttribute('download', busta.fileName || 'documento.pdf'); 
+                document.body.appendChild(link);
+                link.click();
+                
+                // Pulizia della memoria
+                link.parentNode.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error("Errore download Web:", error);
+                // Piano B: se il download forzato fallisce, lo apriamo in una nuova scheda
+                window.open(busta.downloadUrl, '_blank');
+            }
         } else {
-            // SU TELEFONO: Scarica e mostra il menu di condivisione/salvataggio
+            // SU MOBILE: iOS e Android
             try {
                 const fileUri = FileSystem.documentDirectory + busta.fileName;
                 const { uri } = await FileSystem.downloadAsync(busta.downloadUrl, fileUri);
                 
                 if (await Sharing.isAvailableAsync()) {
+                    // Apre il menu nativo (Salva su File, Invia su WhatsApp, ecc.)
                     await Sharing.shareAsync(uri);
                 } else {
-                    Alert.alert("Salvato", "File salvato nei tuoi documenti.");
+                    Alert.alert("Salvato", "File scaricato nella memoria dell'app.");
                 }
             } catch (error) {
+                console.error("Errore download Mobile:", error);
                 Alert.alert("Errore", "Impossibile scaricare il file.");
             }
         }

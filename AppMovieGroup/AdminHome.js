@@ -35,6 +35,25 @@ export default function AdminHome({ navigation }) {
   const [realKey, setRealKey] = useState(null); // La password vera scaricata dal DB
   const [keyLoading, setKeyLoading] = useState(true); // Sto caricando?
   const [errorMsg, setErrorMsg] = useState(''); // Messaggio di errore
+  const [userLocation, setUserLocation] = useState(null); // Memorizza la posizione rilevata dal radar
+
+  // --- RADAR POSIZIONE ADMIN (Aggiorna ogni minuto per coerenza totale) ---
+  useEffect(() => {
+    const updateLocation = async () => {
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        // Usiamo Accuracy.High per la Diagnosi Perfetta
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        setUserLocation(loc.coords);
+      } catch (e) {
+        console.log("Errore radar admin:", e);
+      }
+    };
+    updateLocation();
+    const interval = setInterval(updateLocation, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // --- 1. CARICAMENTO CHIAVE DI SICUREZZA ---
   useEffect(() => {
@@ -254,7 +273,11 @@ const onStartShift = async (s) => {
           }
           
           // 4. Prendiamo la posizione
-          let loc = await Location.getCurrentPositionAsync({});
+          let loc = await Location.getCurrentPositionAsync({ 
+    accuracy: Location.Accuracy.High, // Obbliga l'uso del GPS reale
+    timeout: 15000,                  // Aspetta fino a 15 secondi per un segnale certo
+    maximumAge: 1000                 // Non usa vecchie posizioni salvate in memoria
+});
           
           // 5. Aggiorniamo il Database
           await updateDoc(doc(db, "shifts", s.id), { 
