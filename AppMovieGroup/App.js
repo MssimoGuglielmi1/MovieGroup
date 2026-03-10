@@ -359,19 +359,44 @@ const handleLogin = async () => {
                     </TouchableOpacity>
                 </View>
 
-                {/* SELETTORE RUOLO */}
-                <View style={styles.switchContainer}>
-                  <Text style={styles.switchLabel}>Registrati come: <Text style={{fontWeight:'bold', color:'#22d3ee'}}>{registrationRole}</Text></Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                        if(registrationRole === 'COLLABORATORE') setRegistrationRole('AMMINISTRATORE');
-                        else setRegistrationRole('COLLABORATORE');
-                    }}
-                    style={{backgroundColor:'#0e7490', padding:8, borderRadius:8}}
-                  >
-                    <Text style={{color:'#fff'}}>Cambia</Text>
-                  </TouchableOpacity>
-                </View>
+{/* SELETTORE RUOLO DINAMICO (Celeste <--> Arancione) */}
+<View style={[styles.switchContainer, { 
+    borderColor: registrationRole === 'COLLABORATORE' ? '#00D1FF' : '#F97316',
+    borderWidth: 1 
+}]}>
+    <Text style={styles.switchLabel}>
+        Registrati come: {' '}
+        <Text style={{ 
+            fontWeight: 'bold', 
+            color: registrationRole === 'COLLABORATORE' ? '#00D1FF' : '#F97316' 
+        }}>
+            {registrationRole}
+        </Text>
+    </Text>
+    
+    <TouchableOpacity
+        onPress={() => {
+            if(registrationRole === 'COLLABORATORE') setRegistrationRole('AMMINISTRATORE');
+            else setRegistrationRole('COLLABORATORE');
+        }}
+        style={{
+            backgroundColor: registrationRole === 'COLLABORATORE' ? 'rgba(0,209,255,0.15)' : 'rgba(249,115,22,0.15)',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: registrationRole === 'COLLABORATORE' ? '#00D1FF' : '#F97316'
+        }}
+    >
+        <Text style={{ 
+            color: registrationRole === 'COLLABORATORE' ? '#00D1FF' : '#F97316', 
+            fontWeight: '900',
+            fontSize: 12
+        }}>
+            CAMBIA
+        </Text>
+    </TouchableOpacity>
+</View>
               </>
             )}
 
