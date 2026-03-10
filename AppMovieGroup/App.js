@@ -258,7 +258,7 @@ const handleLogin = async () => {
         <ScrollView 
             contentContainerStyle={[
                 styles.scrollContainer, 
-                !isLogin && { justifyContent: 'flex-start', paddingTop: 60 } 
+                !isLogin && { justifyContent: 'flex-start', paddingTop: 60, paddingBottom: Platform.OS === 'web' ? 140 : 20 } 
             ]}
         >
           
