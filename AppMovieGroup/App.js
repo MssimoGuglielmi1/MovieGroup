@@ -1,4 +1,4 @@
-//App.js
+//App.js //firebase fire store database = "dati" <--> setting =|= globalConfig -> | -> adminPassword: "2721" | defaultRate: "0.10" <-10 CENTESIMI AL MINUTO-> defaultType:"minute" |
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,

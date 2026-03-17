@@ -1,4 +1,4 @@
-// ModificaTurno.js
+// ModificaTurno.js //App.js //firebase fire store database = "dati" <--> setting =|= globalConfig -> | -> adminPassword: "2721" | defaultRate: "0.10" <-10 CENTESIMI AL MINUTO-> defaultType:"minute" |
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Platform, StatusBar, Alert, ActivityIndicator, Switch } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -44,9 +44,10 @@ export default function ModificaTurno({ navigation, route }) {
     // Ricostruiamo gli oggetti Date partendo dalle stringhe "HH:mm"
     const safeDateStart = shift.startTime ? new Date(`2000-01-01T${shift.startTime}:00`) : new Date();
     const safeDateEnd = shift.endTime ? new Date(`2000-01-01T${shift.endTime}:00`) : new Date();
-    
     const [startTime, setStartTime] = useState(safeDateStart);
     const [endTime, setEndTime] = useState(safeDateEnd);
+    // NOTA FACOLTATIVA
+    const [note, setNote] = useState(shift.note || '');
 
     // --- GESTIONE PAUSA (Nuova) ⏸️ ---
     const [hasBreak, setHasBreak] = useState(shift.hasBreak || false);
@@ -162,7 +163,9 @@ export default function ModificaTurno({ navigation, route }) {
                 // --- CAMPI PAUSA AGGIUNTI ---
                 hasBreak: hasBreak,
                 breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
-                breakEndTime: hasBreak ? formatTime(breakEndTime) : null
+                breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
+                // NOTA FACOLTATIVA
+                note: note.trim()
             };
 
             await updateDoc(shiftRef, updateData);
@@ -238,6 +241,17 @@ export default function ModificaTurno({ navigation, route }) {
                 <View style={[styles.card, isRestricted && {opacity: 0.5}]}>
                     <Text style={styles.label}>LUOGO</Text>
                     <TextInput style={styles.input} value={location} onChangeText={setLocation} editable={!isRestricted} />
+                    
+<Text style={[styles.label, { color: '#FFFFFF' }]}>NOTE AGGIUNTIVE (FACOLTATIVO)</Text>
+<TextInput 
+    style={[styles.input, { height: 80, textAlignVertical: 'top' }]} 
+    placeholder="300 caratteri massimi (se serve ve li aumento)" 
+    placeholderTextColor={Colors.textSecondary} 
+    value={note} 
+    onChangeText={setNote} 
+    multiline={true}
+    maxLength={300}
+/>
 
                     <Text style={styles.label}>DATA</Text>
                     {Platform.OS === 'web' ? (
@@ -367,3 +381,4 @@ const styles = StyleSheet.create({
     lockedBox: { flexDirection:'row', alignItems:'center', backgroundColor: Colors.yellow+'20', padding: 15, borderRadius: 12, marginBottom: 20, borderWidth:1, borderColor: Colors.yellow },
     lockedText: { color: Colors.yellow, marginLeft: 10, flex: 1, fontSize: 12 }
 });
+// ModificaTurno.js

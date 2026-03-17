@@ -521,102 +521,136 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
             <Feather name="chevron-right" size={24} color={Colors.yellow} />
         </TouchableOpacity>
 
-{/* --- SEZIONE 1: INVITI (Si vede solo se ce ne sono) --- */}
-        {invites.length > 0 && (
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, {color: CurrentColors.yellow}]}>⚠️ DA CONFERMARE ({invites.length})</Text>
-                {invites.map(invite => (
-                    <View key={invite.id} style={[styles.card, {borderColor: CurrentColors.yellow}]}>
-<View style={styles.cardHeader}>
-                        {/* SINISTRA: LUOGO */}
-                        <View style={{flex: 1, marginRight: 10}}>
-                            <Text style={styles.cardTitle}>{invite.location}</Text>
-                        </View>
-
-                        {/* DESTRA: COLONNA ORARI E PAUSA (Allineati a destra) */}
-                        <View style={{alignItems: 'flex-end'}}>
-                            {/* 1. DATA E ORA TURNO */}
-                            <Text style={[styles.cardSubtitle, {color: CurrentColors.cyan, textAlign: 'right'}]}>
-                                {invite.date} • {invite.startTime} - {invite.endTime}
-                            </Text>
-
-                            {/* 2. PAUSA (Sotto l'orario) */}
-                            {invite.hasBreak && (
-                                <View style={{flexDirection:'row', alignItems:'center', marginTop: 4}}>
-                                    <Feather name="coffee" size={12} color={CurrentColors.orange || '#F97316'} />
-                                    <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
-                                        PAUSA: {invite.breakStartTime} - {invite.breakEndTime}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
+{/* --- SEZIONE 1: INVITI --- */}
+{invites.length > 0 && (
+    <View style={styles.section}>
+        <Text style={[styles.sectionTitle, {color: CurrentColors.yellow}]}>⚠️ DA CONFERMARE ({invites.length})</Text>
+        {invites.map(invite => (
+            <View key={invite.id} style={[styles.card, {borderColor: CurrentColors.yellow}]}>
+                <View style={styles.cardHeader}>
+                    <View style={{flex: 1, marginRight: 10}}>
+                        <Text style={styles.cardTitle}>{invite.location}</Text>
                     </View>
-                        <View style={styles.buttonRow}>
-                            <TouchableOpacity onPress={()=>handleDecline(invite.id)} style={[styles.actionButton, {borderColor: CurrentColors.error, borderWidth:1}]}><Text style={{color: CurrentColors.error, fontWeight:'bold'}}>Rifiuta</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={()=>handleAccept(invite)} style={[styles.actionButton, {backgroundColor: CurrentColors.primary}]}><Text style={{color: '#000', fontWeight:'bold'}}>Accetta</Text></TouchableOpacity>
-                        </View>
+                    <View style={{alignItems: 'flex-end'}}>
+                        <Text style={[styles.cardSubtitle, {color: CurrentColors.cyan, textAlign: 'right'}]}>
+                            {invite.date} • {invite.startTime} - {invite.endTime}
+                        </Text>
+                        {invite.hasBreak && (
+                            <View style={{flexDirection:'row', alignItems:'center', marginTop: 4}}>
+                                <Feather name="coffee" size={12} color={CurrentColors.orange} />
+                                <Text style={{color: CurrentColors.orange, fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
+                                    PAUSA: {invite.breakStartTime}
+                                </Text>
+                            </View>
+                        )}
                     </View>
-                ))}
+                </View>
+
+                {/* Visualizzazione Nota negli Inviti */}
+{invite.note ? (
+    <View style={{
+        marginTop: 10, 
+        padding: 10, 
+        backgroundColor: CurrentColors.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)', 
+        borderRadius: 8, 
+        borderLeftWidth: 3, 
+        borderLeftColor: CurrentColors.accent 
+    }}>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
+            <Feather name="info" size={12} color={CurrentColors.accent} />
+            <Text style={{color: CurrentColors.accent, fontSize: 10, fontWeight: 'bold', marginLeft: 5}}>NOTA:</Text>
+        </View>
+        <Text style={{color: CurrentColors.textMain, fontSize: 13, fontStyle: 'italic'}}>
+            "{invite.note}"
+        </Text>
+    </View>
+) : null}
+
+                <View style={styles.buttonRow}>
+                    <TouchableOpacity onPress={()=>handleDecline(invite.id)} style={[styles.actionButton, {borderColor: CurrentColors.error, borderWidth:1}]}><Text style={{color: CurrentColors.error, fontWeight:'bold'}}>Rifiuta</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={()=>handleAccept(invite)} style={[styles.actionButton, {backgroundColor: CurrentColors.primary}]}><Text style={{color: '#000', fontWeight:'bold'}}>Accetta</Text></TouchableOpacity>
+                </View>
             </View>
-        )}
+        ))}
+    </View>
+)}
 
         {/* --- SEZIONE 2: IN ARRIVO / OGGI (Urgenti) --- */}
-        {activeShifts.length > 0 && (
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, {color: CurrentColors.accent}]}>🔔 IN ARRIVO / OGGI</Text>
-                {activeShifts.map(shift => {
-                    // Logica interna della Card
-                    const statusCheck = checkShiftStatus(shift.date, shift.startTime, shift.endTime);
-                    const canStart = statusCheck === 'VALID';
-                    const isInProgress = shift.status === 'in-corso';
-                    const btnColor = canStart ? CurrentColors.primary : CurrentColors.border;
-                    const textColor = canStart ? (CurrentColors.isDark ? '#000' : '#FFF') : CurrentColors.textSub;
+{/* --- SEZIONE 2: IN ARRIVO / OGGI (Urgenti) --- */}
+{activeShifts.length > 0 && (
+    <View style={styles.section}>
+        <Text style={[styles.sectionTitle, {color: CurrentColors.accent}]}>🔔 IN ARRIVO / OGGI</Text>
+        {activeShifts.map(shift => {
+            const statusCheck = checkShiftStatus(shift.date, shift.startTime, shift.endTime);
+            const canStart = statusCheck === 'VALID';
+            const isInProgress = shift.status === 'in-corso';
+            const btnColor = canStart ? CurrentColors.primary : CurrentColors.border;
+            const textColor = canStart ? (CurrentColors.isDark ? '#000' : '#FFF') : CurrentColors.textSub;
 
-                    return (
-                        <View key={shift.id} style={[styles.card, {borderColor: CurrentColors.accent, borderWidth: 1}]}>
-                             <View style={styles.cardHeader}>                  
-                                <View><Text style={styles.cardTitle}>{shift.location}</Text><Text style={styles.cardSubtitle}>{shift.date} • {shift.startTime} - {shift.endTime}</Text></View>
-                                {/* --- INIZIO CODICE PAUSA --- */}
-                            {shift.hasBreak && (
-                                <View style={{flexDirection:'row', alignItems:'center', marginTop:5}}>
-                                    <Feather name="coffee" size={13} color={CurrentColors.orange || '#F97316'} />
-                                    <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 12, fontWeight: 'bold', marginLeft: 5}}>
-                                        PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
-                                    </Text>
-                                </View>
-                            )}
-                            {/* --- FINE CODICE PAUSA --- */}
-                            </View>
-                            
-                            {isInProgress ? (
-                                <View>
-                                    {renderDynamicTimer(shift)}
-                                    {/* TASTO TERMINA TURNO */}
-                                    <TouchableOpacity onPress={() => handleManualEndShift(shift)} style={{backgroundColor: CurrentColors.error, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: CurrentColors.error}}>
-                                        <View style={{flexDirection:'row', alignItems:'center'}}>
-                                            <Feather name="stop-circle" size={18} color="#FFF" style={{marginRight: 8}}/>
-                                            <Text style={{color: '#FFF', fontWeight: 'bold'}}>TERMINA TURNO</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                </View>
-                            ) : (
-                                <View style={{marginTop: 15}}>
-                                    {/* TASTO TIMBRA */}
-                                    <TouchableOpacity disabled={loadingLocation} onPress={()=>handleStartShift(shift)} style={{backgroundColor: btnColor, padding: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: btnColor}}>
-                                        {loadingLocation ? <ActivityIndicator color={textColor}/> : 
-                                            <View style={{flexDirection:'row', alignItems:'center'}}>
-                                                <Feather name={canStart ? "map-pin" : "clock"} size={16} color={textColor} style={{marginRight: 8}}/>
-                                                <Text style={{color: textColor, fontWeight: 'bold'}}>{canStart ? "TIMBRA PRESENZA (GPS)" : "ATTENDI ORARIO (1H PRIMA)"}</Text>
-                                            </View>
-                                        }
-                                    </TouchableOpacity>
-                                </View>
-                            )}
+            return (
+                <View key={shift.id} style={[styles.card, {borderColor: CurrentColors.accent, borderWidth: 1}]}>
+                    <View style={styles.cardHeader}>                  
+                        <View>
+                            <Text style={styles.cardTitle}>{shift.location}</Text>
+                            <Text style={styles.cardSubtitle}>{shift.date} • {shift.startTime} - {shift.endTime}</Text>
                         </View>
-                    );
-                })}
-            </View>
-        )}
+                        {shift.hasBreak && (
+                            <View style={{flexDirection:'row', alignItems:'center', marginTop:5}}>
+                                <Feather name="coffee" size={13} color={CurrentColors.orange || '#F97316'} />
+                                <Text style={{color: CurrentColors.orange || '#F97316', fontSize: 12, fontWeight: 'bold', marginLeft: 5}}>
+                                    PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* --- VISUALIZZAZIONE NOTA (CORRETTA) --- */}
+                    {shift.note ? (
+                        <View style={{
+                            marginTop: 10, 
+                            padding: 10, 
+                            backgroundColor: CurrentColors.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)', 
+                            borderRadius: 8, 
+                            borderLeftWidth: 3, 
+                            borderLeftColor: CurrentColors.accent 
+                        }}>
+                            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
+                                <Feather name="info" size={12} color={CurrentColors.accent} />
+                                <Text style={{color: CurrentColors.accent, fontSize: 10, fontWeight: 'bold', marginLeft: 5}}>NOTA:</Text>
+                            </View>
+                            <Text style={{color: CurrentColors.textMain, fontSize: 13, fontStyle: 'italic'}}>
+                                "{shift.note}"
+                            </Text>
+                        </View>
+                    ) : null}
+                    
+                    {isInProgress ? (
+                        <View>
+                            {renderDynamicTimer(shift)}
+                            <TouchableOpacity onPress={() => handleManualEndShift(shift)} style={{backgroundColor: CurrentColors.error, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: CurrentColors.error}}>
+                                <View style={{flexDirection:'row', alignItems:'center'}}>
+                                    <Feather name="stop-circle" size={18} color="#FFF" style={{marginRight: 8}}/>
+                                    <Text style={{color: '#FFF', fontWeight: 'bold'}}>TERMINA TURNO</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={{marginTop: 15}}>
+                            <TouchableOpacity disabled={loadingLocation} onPress={()=>handleStartShift(shift)} style={{backgroundColor: btnColor, padding: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: btnColor}}>
+                                {loadingLocation ? <ActivityIndicator color={textColor}/> : 
+                                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                                        <Feather name={canStart ? "map-pin" : "clock"} size={16} color={textColor} style={{marginRight: 8}}/>
+                                        <Text style={{color: textColor, fontWeight: 'bold'}}>{canStart ? "TIMBRA PRESENZA (GPS)" : "ATTENDI ORARIO (1H PRIMA)"}</Text>
+                                    </View>
+                                }
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+            );
+        })}
+    </View>
+)}
 
         {/* --- SEZIONE 3: PROGRAMMA FUTURO (Il resto) --- */}
         <View style={styles.section}>
@@ -696,6 +730,7 @@ const getStyles = (Colors) => StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   cardTitle: { fontSize: 17, fontWeight: 'bold', color: Colors.textMain },
   cardSubtitle: { fontSize: 13, color: Colors.textSub },
+  
   historyWidget: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
   iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   widgetTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textMain, marginBottom: 2 },

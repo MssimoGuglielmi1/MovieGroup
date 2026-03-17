@@ -483,6 +483,27 @@ return (
     <Feather name="edit-2" size={14} color={Colors.textSecondary} />
 </View>
 
+{/* Visualizzazione Nota se presente */}
+{item.note ? (
+    <View style={{
+        marginTop: 10, 
+        padding: 10, 
+        backgroundColor: 'rgba(255, 255, 255, 0.05)', 
+        borderRadius: 8, 
+        borderLeftWidth: 3, 
+        borderLeftColor: Colors.accent 
+    }}>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
+            <Feather name="info" size={12} color={Colors.accent} />
+            <Text style={{color: Colors.accent, fontSize: 10, fontWeight: 'bold', marginLeft: 5}}>NOTA:</Text>
+        </View>
+        <Text style={{color: Colors.textPrimary, fontSize: 13, fontStyle: 'italic'}}>
+            "{item.note}"
+        </Text>
+    </View>
+) : null}
+
+
                 {/* RIGA 2: ORARIO */}
                 <Text style={styles.timeText}>📅 {item.date} • ⏰ {item.startTime} - {item.endTime}</Text>
                 {/* --- BLOCCO PAUSA --- */}
@@ -673,3 +694,4 @@ const styles = StyleSheet.create({
     searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',margin: 15,marginBottom: 5, paddingHorizontal: 15,borderRadius: 10,height: 45,},
     searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
 });
+//ShiftManagementScreen.js

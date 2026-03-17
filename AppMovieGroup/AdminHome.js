@@ -1,4 +1,4 @@
-//AdminHome.js
+//AdminHome.js //firebase fire store database = "dati" <--> settings-> globalConfig -> adminPassword: "2721" | defaultRate: "0.10" | defaultType:"minute"
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Alert, Platform, StatusBar, ActivityIndicator, Linking, Modal, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -533,26 +533,43 @@ const onStartShift = async (s) => {
                     const isTooEarlyToClose = currentTime < scheduledEnd;
 
                     return (
-                        <View key={shift.id} style={[styles.cardItem, { flexDirection: 'column', alignItems: 'stretch' }]}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                <View>
-                                    <Text style={styles.cardTitle}>{shift.location}</Text>
-                                    <Text style={styles.cardSubtitle}>📅 {shift.date} • ⏰ {shift.startTime} - {shift.endTime}</Text>
-                                    {/* --- INIZIO BLOCCO PAUSA --- */}
-                    {shift.hasBreak && (
-                        <View style={{flexDirection:'row', alignItems:'center', marginTop:3}}>
-                            <Feather name="coffee" size={12} color={CurrentColors.orange} />
-                            <Text style={{color: CurrentColors.orange, fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
-                                PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
-                            </Text>
-                        </View>
-                    )}
-                    {/* --- FINE BLOCCO PAUSA --- */}
-                                </View>
-                                <View style={{ backgroundColor: isWorking ? CurrentColors.primary : CurrentColors.surface, padding: 5, borderRadius: 5 }}>
-                                    <Feather name={isWorking ? "activity" : "clock"} size={20} color={isWorking ? '#000' : CurrentColors.textSub} />
-                                </View>
-                            </View>
+    <View key={shift.id} style={[styles.cardItem, { flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={{ flexDirection: 'row', width: '100%' }}>
+            {/* Contenitore unico per i testi, occupa tutto lo spazio disponibile */}
+            <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{shift.location}</Text>
+                <Text style={styles.cardSubtitle}>📅 {shift.date} • ⏰ {shift.startTime} - {shift.endTime}</Text>
+
+                                    {/* Visualizzazione Nota se presente */}
+{/* Visualizzazione Nota per l'Admin */}
+{shift.note ? (
+    <View style={{
+        marginTop: 10, 
+        padding: 10, 
+        backgroundColor: CurrentColors.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)', 
+        borderRadius: 8, 
+        borderLeftWidth: 3, 
+        borderLeftColor: '#BF5AF2' // Colore viola degli Admin
+    }}>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
+            <Feather name="info" size={12} color="#BF5AF2" />
+            <Text style={{color: '#BF5AF2', fontSize: 10, fontWeight: 'bold', marginLeft: 5}}>NOTA:</Text>
+        </View>
+        <Text style={{color: CurrentColors.textMain, fontSize: 13, fontStyle: 'italic'}}>
+            "{shift.note}"
+        </Text>
+    </View>
+) : null}
+                                    {shift.hasBreak && (
+                    <View style={{flexDirection:'row', alignItems:'center', marginTop:3}}>
+                        <Feather name="coffee" size={12} color={CurrentColors.orange} />
+                        <Text style={{color: CurrentColors.orange, fontSize: 11, fontWeight: 'bold', marginLeft: 4}}>
+                            PAUSA: {shift.breakStartTime} - {shift.breakEndTime}
+                        </Text>
+                    </View>
+                )}
+            </View>
+        </View>
 
                             {renderTimer(shift)}
 

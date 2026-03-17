@@ -1,4 +1,4 @@
-//AdminStaffScreen.js
+//AdminStaffScreen.js //firebase fire store database = "dati" <--> settings-> globalConfig -> adminPassword: "2721" | defaultRate: "0.10" | defaultType:"minute"
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Modal, Linking, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';

@@ -15,7 +15,6 @@ const Colors = {
 
 export default function CreateShiftScreen({ navigation, route }) {
     const { activeCollaborators } = route.params || { activeCollaborators: [] };
-
     const [selectedCollaborators, setSelectedCollaborators] = useState([]);
     const [location, setLocation] = useState('');
     
@@ -39,7 +38,6 @@ export default function CreateShiftScreen({ navigation, route }) {
     // Dati del creatore
     const [creatorRole, setCreatorRole] = useState(null); 
     const [creatorName, setCreatorName] = useState(''); 
-
     const [loading, setLoading] = useState(false);
     
     // VISIBILITÀ POPUP (Solo per Mobile)
@@ -50,6 +48,8 @@ export default function CreateShiftScreen({ navigation, route }) {
     // Popup per Pausa (Mobile)
     const [showBreakStartPicker, setShowBreakStartPicker] = useState(false);
     const [showBreakEndPicker, setShowBreakEndPicker] = useState(false);
+    // STATO DELLA NOTA
+    const [note, setNote] = useState('');
 
     useEffect(() => {
         // 1. CHI SEI TU?
@@ -222,6 +222,7 @@ export default function CreateShiftScreen({ navigation, route }) {
                     collaboratorName: collabName,
                     collaboratorRole: collabRole,
                     location: location,
+                    note: note.trim(),
                     date: formatDate(date),
                     startTime: formatTime(startTime),
                     endTime: formatTime(endTime),
@@ -329,6 +330,16 @@ export default function CreateShiftScreen({ navigation, route }) {
                     <View style={styles.sectionHeader}><Feather name="map-pin" size={18} color={Colors.yellow} /><Text style={[styles.sectionTitle, {color: Colors.yellow}]}>LOCATION & ORARI</Text></View>
                     <TextInput style={styles.input} placeholder="Luogo o Evento" placeholderTextColor={Colors.textSecondary} value={location} onChangeText={setLocation} />
                     <View style={styles.divider}/>
+<Text style={[styles.label, { color: '#FFFFFF' }]}>NOTE AGGIUNTIVE (FACOLTATIVO)</Text>
+<TextInput 
+    style={[styles.input, { height: 80, textAlignVertical: 'top' }]} 
+    placeholder="300 caratteri massimi (se serve ve li aumento)" 
+    placeholderTextColor={Colors.textSecondary} 
+    value={note} 
+    onChangeText={setNote} 
+    multiline={true}
+    maxLength={300}
+/>
 
                     {/* --- DATA --- */}
                     <Text style={[styles.smallLabel, {marginBottom:5}]}>DATA EVENTO</Text>
@@ -559,3 +570,4 @@ const styles = StyleSheet.create({
     collabItemSelected: { backgroundColor: Colors.success + '20' },
     collabName: { color: Colors.textSecondary, fontSize: 14 },
 });
+// CreateShiftScreen.js
