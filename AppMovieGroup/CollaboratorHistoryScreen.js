@@ -13,9 +13,6 @@ const Colors = {
 export default function CollaboratorHistoryScreen({ onBack }) {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchText, setSearchText] = useState(''); // <--- Per la ricerca
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState(''); 
     // --- MOTORE CARTELLE DINAMICHE ---
     const [openFolders, setOpenFolders] = useState({});
