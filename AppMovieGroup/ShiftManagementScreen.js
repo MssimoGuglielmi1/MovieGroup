@@ -20,6 +20,11 @@ export default function ShiftManagementScreen({ navigation }) {
     const [loadingAction, setLoadingAction] = useState(false);
     const [currentUserRole, setCurrentUserRole] = useState(null);
     const [searchText, setSearchText] = useState(''); // <--- STATO PER LA RICERCA
+    // --- STATO CARTELLE DINAMICHE ---
+    const [openFolders, setOpenFolders] = useState({});
+    const toggleFolder = (locationName) => {
+        setOpenFolders(prev => ({ ...prev, [locationName]: !prev[locationName] }));
+    };
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
     const [showGuide, setShowGuide] = useState(false); // <--- Stato per aprire/chiudere la guida
 
@@ -616,13 +621,74 @@ return (
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'PROGRAM' && styles.tabActive]} onPress={() => setCurrentTab('PROGRAM')}><Text style={[styles.tabText, currentTab === 'PROGRAM' && styles.tabTextActive]}>OPERATIVI</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'HISTORY' && styles.tabActive]} onPress={() => setCurrentTab('HISTORY')}><Text style={[styles.tabText, currentTab === 'HISTORY' && styles.tabTextActive]}>STORICO</Text></TouchableOpacity>
             </View>
-            <FlatList
-                data={dataToShow}
-                keyExtractor={item => item.id}
-                renderItem={renderShiftItem}
-                contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-                ListEmptyComponent={<View style={{marginTop: 50, alignItems:'center'}}><Feather name="inbox" size={40} color={Colors.textSecondary} /><Text style={styles.emptyText}>Nessun turno in questa lista.</Text></View>}
-            />
+            {/* --- MOTORE CARTELLE DINAMICHE --- */}
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                {(() => {
+                    // Raggruppiamo i turni per Evento/Luogo
+                    const groupedData = dataToShow.reduce((acc, shift) => {
+                        const title = shift.location || "ALTRO";
+                        if (!acc[title]) acc[title] = [];
+                        acc[title].push(shift);
+                        return acc;
+                    }, {});
+
+                    if (Object.keys(groupedData).length === 0) {
+                        return (
+                            <View style={{marginTop: 50, alignItems:'center'}}>
+                                <Feather name="inbox" size={40} color={Colors.textSecondary} />
+                                <Text style={styles.emptyText}>Nessun turno in questa lista.</Text>
+                            </View>
+                        );
+                    }
+
+                    return Object.entries(groupedData).map(([locationName, shiftsInFolder]) => {
+                        const isOpen = openFolders[locationName];
+                        return (
+                            <View key={locationName} style={{ marginBottom: 15 }}>
+                                {/* TITOLO CARTELLA CLICCABILE */}
+                                <TouchableOpacity 
+                                    style={{
+                                        backgroundColor: Colors.surface,
+                                        padding: 15,
+                                        borderRadius: 12,
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        borderWidth: 1,
+                                        borderColor: Colors.accent
+                                    }}
+                                    onPress={() => toggleFolder(locationName)}
+                                >
+                                    <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                                        <Feather name={isOpen ? "folder-minus" : "folder"} size={22} color={Colors.accent} />
+                                        <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16, marginLeft: 10, textTransform: 'uppercase' }} numberOfLines={1}>
+                                            {locationName}
+                                        </Text>
+                                    </View>
+                                    
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <View style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginRight: 10 }}>
+                                            <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 12 }}>{shiftsInFolder.length}</Text>
+                                        </View>
+                                        <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={20} color={Colors.textSecondary} />
+                                    </View>
+                                </TouchableOpacity>
+
+                                {/* CONTENUTO CARTELLA (Elenco Turni) */}
+                                {isOpen && (
+                                    <View style={{ marginTop: 10, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: Colors.accent }}>
+                                        {shiftsInFolder.map(shift => (
+                                            <View key={shift.id}>
+                                                {renderShiftItem({ item: shift })}
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    });
+                })()}
+            </ScrollView>
 {/* --- MODAL GUIDA --- */}
             <WelcomeModal 
                 visible={showGuide} 

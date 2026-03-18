@@ -1,6 +1,6 @@
 //CollaboratorHistory.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, StatusBar, Platform, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, StatusBar, Platform, TouchableOpacity, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -14,6 +14,14 @@ export default function CollaboratorHistoryScreen({ onBack }) {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState(''); // <--- Per la ricerca
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchText, setSearchText] = useState(''); 
+    // --- MOTORE CARTELLE DINAMICHE ---
+    const [openFolders, setOpenFolders] = useState({});
+    const toggleFolder = (locationName) => {
+        setOpenFolders(prev => ({ ...prev, [locationName]: !prev[locationName] }));
+    };
 
     useEffect(() => {
         const user = auth.currentUser;
@@ -96,21 +104,91 @@ export default function CollaboratorHistoryScreen({ onBack }) {
                     </TouchableOpacity>
                 )}
             </View>
-            {loading ? (
+{loading ? (
                 <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
             ) : (
-                <FlatList
-                    data={filteredHistory}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
-                    contentContainerStyle={{ padding: 20 }}
-                    ListEmptyComponent={
-                        <View style={{ alignItems: 'center', marginTop: 50 }}>
-                            <Feather name="clock" size={50} color={Colors.textSub} />
-                            <Text style={styles.emptyText}>Nessun turno completato di recente.</Text>
-                        </View>
+                <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 50 }}>
+                {(() => {
+                    // Raggruppiamo i turni per Luogo
+                    const groupedData = filteredHistory.reduce((acc, shift) => {
+                        const title = shift.location || "ALTRO";
+                        if (!acc[title]) acc[title] = [];
+                        acc[title].push(shift);
+                        return acc;
+                    }, {});
+
+                    if (Object.keys(groupedData).length === 0) {
+                        return (
+                            <View style={{ alignItems: 'center', marginTop: 50 }}>
+                                <Feather name="clock" size={50} color={Colors.textSub} />
+                                <Text style={styles.emptyText}>Nessun turno completato di recente.</Text>
+                            </View>
+                        );
                     }
-                />
+
+                    return Object.entries(groupedData).map(([locationName, shiftsInFolder]) => {
+                        const isOpen = openFolders[locationName];
+                        return (
+                            <View key={locationName} style={{ marginBottom: 15 }}>
+                                {/* TITOLO CARTELLA */}
+                                <TouchableOpacity 
+                                    style={{
+                                        backgroundColor: Colors.surface,
+                                        padding: 15,
+                                        borderRadius: 12,
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        borderWidth: 1,
+                                        borderColor: Colors.success 
+                                    }}
+                                    onPress={() => toggleFolder(locationName)}
+                                >
+                                    <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                                        <Feather name={isOpen ? "folder-minus" : "folder"} size={22} color={Colors.success} />
+                                        <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16, marginLeft: 10, textTransform: 'uppercase' }} numberOfLines={1}>
+                                            {locationName}
+                                        </Text>
+                                    </View>
+                                    
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <View style={{ backgroundColor: Colors.success, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginRight: 10 }}>
+                                            <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 12 }}>{shiftsInFolder.length}</Text>
+                                        </View>
+                                        <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={20} color={Colors.textSub} />
+                                    </View>
+                                </TouchableOpacity>
+
+                                {/* CONTENUTO CARTELLA */}
+                                {isOpen && (
+                                    <View style={{ marginTop: 10, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: Colors.success }}>
+                                        {shiftsInFolder.map(item => (
+                                            <View key={item.id} style={styles.card}>
+                                                <View style={styles.cardHeader}>
+                                                    <Text style={styles.shiftTitle}>{item.location}</Text>
+                                                    <View style={styles.badge}>
+                                                        <Text style={styles.badgeText}>COMPLETATO ✅</Text>
+                                                    </View>
+                                                </View>
+                                                
+                                                <View style={{flexDirection:'row', alignItems:'center', marginBottom: 5}}>
+                                                    <Feather name="calendar" size={14} color={Colors.textSub} style={{marginRight:5}} />
+                                                    <Text style={styles.shiftDate}>{item.date}</Text>
+                                                </View>
+
+                                                <View style={styles.detailBox}>
+                                                    <Text style={styles.detailLabel}>Orario:</Text>
+                                                    <Text style={styles.detailValue}>{item.startTime} - {item.endTime}</Text>
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    });
+                })()}
+                </ScrollView>
             )}
         </SafeAreaView>
     );

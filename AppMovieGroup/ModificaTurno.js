@@ -40,27 +40,23 @@ export default function ModificaTurno({ navigation, route }) {
     // Usiamo la funzione sicura qui sotto:
     const [date, setDate] = useState(parseDateSafe(shift.date));
     
-    // --- INIZIALIZZAZIONE DATE E ORARI ---
-    // Ricostruiamo gli oggetti Date partendo dalle stringhe "HH:mm"
+// --- INIZIALIZZAZIONE DATE E ORARI ---
     const safeDateStart = shift.startTime ? new Date(`2000-01-01T${shift.startTime}:00`) : new Date();
     const safeDateEnd = shift.endTime ? new Date(`2000-01-01T${shift.endTime}:00`) : new Date();
     const [startTime, setStartTime] = useState(safeDateStart);
     const [endTime, setEndTime] = useState(safeDateEnd);
-    // NOTA FACOLTATIVA
     const [note, setNote] = useState(shift.note || '');
-
-    // --- GESTIONE PAUSA (Nuova) ⏸️ ---
+    // 🔥 LA CURA: GESTIONE PAUSA INTELLIGENTE 🔥
     const [hasBreak, setHasBreak] = useState(shift.hasBreak || false);
-    
-    // Se c'erano orari pausa salvati, li usiamo. Altrimenti default (+30 min)
-    const safeBreakStart = shift.breakStartTime ? new Date(`2000-01-01T${shift.breakStartTime}:00`) : new Date();
-    const safeBreakEnd = shift.breakEndTime ? new Date(`2000-01-01T${shift.breakEndTime}:00`) : new Date(safeBreakStart.getTime() + 1800000);
-
+    // Se non c'è una pausa salvata, calcoliamo un default ESATTO: 1 ora dopo l'inizio del turno.
+    const defaultBreakStart = new Date(safeDateStart.getTime() + 60 * 60000); 
+    const defaultBreakEnd = new Date(defaultBreakStart.getTime() + 30 * 60000);
+    const safeBreakStart = shift.breakStartTime ? new Date(`2000-01-01T${shift.breakStartTime}:00`) : defaultBreakStart;
+    const safeBreakEnd = shift.breakEndTime ? new Date(`2000-01-01T${shift.breakEndTime}:00`) : defaultBreakEnd;
     const [breakStartTime, setBreakStartTime] = useState(safeBreakStart);
     const [breakEndTime, setBreakEndTime] = useState(safeBreakEnd);
 
     const [payoutRate, setPayoutRate] = useState(shift.payoutRate);
-    
     const [currentUserRole, setCurrentUserRole] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
     const [loading, setLoading] = useState(false);

@@ -252,7 +252,7 @@ export default function CreateShiftScreen({ navigation, route }) {
 
             await Promise.all(createShiftPromises);
 
-            showAlert("SUCCESSO 🚀", `${selectedCollaborators.length} Turni assegnati correttamente!`);
+            showAlert("SUCCESSO ✅", `${selectedCollaborators.length} Turni assegnati correttamente!`);
             setSelectedCollaborators([]); 
 
         } catch (error) { 

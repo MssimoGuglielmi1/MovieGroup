@@ -70,39 +70,48 @@ export default function StoricoFounder({ navigation }) {
         setSelectedIds([]);
     };
 
-    // --- 3. CANCELLAZIONE SINGOLA (MANTENUTA - Long Press) ---
-const handleSingleDelete = (item) => {
-    if (isSelectionMode) return; // Disattivato in modalità selezione
+// --- 3. CANCELLAZIONE SINGOLA (OTTIMIZZATA SENZA EFFETTO FANTASMA) ---
+    const handleSingleDelete = (item) => {
+        if (isSelectionMode) return; // Disattivato in modalità selezione
 
-    const title = "ELIMINARE TURNO? ⚠️";
-    const message = `Vuoi cancellare definitivamente il turno di ${item.collaboratorName} del ${item.date}? Sparirà dal database.`;
+        const title = "ELIMINARE TURNO? ⚠️";
+        const message = `Vuoi cancellare definitivamente il turno di ${item.collaboratorName} del ${item.date}? Sparirà dal database.`;
 
-    // CONTROLLO COMPATIBILITÀ WEB 🌐
-    if (Platform.OS === 'web') {
-        if (confirm(`${title}\n\n${message}`)) {
-            deleteDoc(doc(db, "shifts", item.id))
-                .catch(e => alert("Errore: " + e.message));
-        }
-    } else {
-        // FUNZIONAMENTO STANDARD PER APP MOBILE 📱
-        Alert.alert(
-            title,
-            message,
-            [
-                { text: "Annulla", style: "cancel" },
-                { 
-                    text: "ELIMINA PER SEMPRE", 
-                    style: "destructive", 
-                    onPress: async () => {
-                        try {
-                            await deleteDoc(doc(db, "shifts", item.id));
-                        } catch (e) { Alert.alert("Errore", e.message); }
+        // Isoliamo l'azione in una funzione per usarla sia su Web che su App
+        const executeDelete = async () => {
+            try {
+                // 1. Spariamo il comando al database
+                await deleteDoc(doc(db, "shifts", item.id));
+                
+                // 2. 🔥 LA CURA: Cancelliamo ISTANTANEAMENTE il turno dalla vista locale
+                setShifts(prevShifts => prevShifts.filter(s => s.id !== item.id));
+                
+            } catch (e) {
+                Alert.alert("Errore", e.message);
+            }
+        };
+
+        // CONTROLLO COMPATIBILITÀ WEB 🌐
+        if (Platform.OS === 'web') {
+            if (confirm(`${title}\n\n${message}`)) {
+                executeDelete();
+            }
+        } else {
+            // FUNZIONAMENTO STANDARD PER APP MOBILE 📱
+            Alert.alert(
+                title,
+                message,
+                [
+                    { text: "Annulla", style: "cancel" },
+                    { 
+                        text: "ELIMINA PER SEMPRE", 
+                        style: "destructive", 
+                        onPress: executeDelete
                     }
-                }
-            ]
-        );
-    }
-};
+                ]
+            );
+        }
+    };
 
     // --- 4. CANCELLAZIONE DI MASSA (NUOVA FUNZIONE) ---
     const handleBulkDelete = () => {
