@@ -20,6 +20,9 @@ export default function ShiftManagementScreen({ navigation }) {
     const [loadingAction, setLoadingAction] = useState(false);
     const [currentUserRole, setCurrentUserRole] = useState(null);
     const [searchText, setSearchText] = useState(''); // <--- STATO PER LA RICERCA
+    const [knownLocations, setKnownLocations] = useState([]);
+    const [filteredLocations, setFilteredLocations] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     // --- STATO CARTELLE DINAMICHE ---
     const [openFolders, setOpenFolders] = useState({});
     const toggleFolder = (locationName) => {
@@ -159,8 +162,16 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
         checkAndCloseShifts();
     }, [currentTime, allShifts]); // <--- Questo fa la magia: scatta ogni secondo!
 
-    // --- AZIONI ---
+    // --- ESTRAZIONE LUOGHI INTELLIGENTE (A COSTO ZERO) ---
+    useEffect(() => {
+        const locSet = new Set();
+        allShifts.forEach(s => {
+            if (s.location) locSet.add(s.location.trim());
+        });
+        setKnownLocations(Array.from(locSet).sort());
+    }, [allShifts]);
 
+    // --- AZIONI ---
     // 1. ACCETTA
     const handleAccept = async (shift) => {
         setLoadingAction(true);
@@ -352,6 +363,24 @@ const isHistoryStatus = (s) => ['completato', 'rifiutato', 'rejected', 'scaduto'
     // Funzione per ordinare dal più RECENTE al più VECCHIO (Ultimi chiusi in alto)
     const sortDescending = (a, b) => new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime);
     // --- FUNZIONE DI RICERCA ---
+    // --- GESTIONE TESTO E SUGGERIMENTI ---
+    const handleSearchChange = (text) => {
+        setSearchText(text);
+        if (text.length > 0) {
+            const filtered = knownLocations.filter(loc => 
+                loc.toLowerCase().includes(text.toLowerCase()) && 
+                loc.toLowerCase() !== text.toLowerCase()
+            );
+            setFilteredLocations(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+    const selectSuggestion = (loc) => {
+        setSearchText(loc);
+        setShowSuggestions(false);
+    };
     const filterBySearch = (list) => {
         if (!searchText) return list; // Se non scrivi nulla, mostra tutto
         const lowerText = searchText.toLowerCase();
@@ -600,20 +629,35 @@ return (
                     <Feather name="help-circle" size={24} color={Colors.cyan || '#06b6d4'} />
                 </TouchableOpacity>
             </View>
-            {/* --- BARRA DI RICERCA NUOVA --- */}
-            <View style={styles.searchContainer}>
-                <Feather name="search" size={20} color={Colors.textSecondary} style={{marginRight: 10}} />
-                <TextInput 
-                    style={styles.searchInput}
-                    placeholder="Cerca nome, data (es. 20/12) o luogo..."
-                    placeholderTextColor={Colors.textSecondary}
-                    value={searchText}
-                    onChangeText={setSearchText}
-                />
-                {searchText.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchText('')}>
-                        <Feather name="x" size={20} color={Colors.textSecondary} />
-                    </TouchableOpacity>
+            {/* --- BARRA DI RICERCA NUOVA CON AUTOCOMPLETAMENTO --- */}
+            <View style={{ zIndex: 1000 }}>
+                <View style={styles.searchContainer}>
+                    <Feather name="search" size={20} color={Colors.textSecondary} style={{marginRight: 10}} />
+                    <TextInput 
+                        style={styles.searchInput}
+                        placeholder="Cerca nome, data (es. 20/12) o luogo..."
+                        placeholderTextColor={Colors.textSecondary}
+                        value={searchText}
+                        onChangeText={handleSearchChange}
+                        onFocus={() => { if(searchText.length > 0 && filteredLocations.length > 0) setShowSuggestions(true); }}
+                    />
+                    {searchText.length > 0 && (
+                        <TouchableOpacity onPress={() => { setSearchText(''); setShowSuggestions(false); }}>
+                            <Feather name="x" size={20} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {/* LA TENDINA MAGICA */}
+                {showSuggestions && (
+                    <View style={styles.suggestionsBox}>
+                        {filteredLocations.slice(0, 4).map((item, index) => (
+                            <TouchableOpacity key={index} style={styles.suggestionItem} onPress={() => selectSuggestion(item)}>
+                                <Feather name="search" size={14} color={Colors.accent} style={{marginRight: 10}} />
+                                <Text style={styles.suggestionText}>{item}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 )}
             </View>
             <View style={styles.tabContainer}>
@@ -759,5 +803,8 @@ const styles = StyleSheet.create({
     actionBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 12 },
     searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: '#2C2C2E',margin: 15,marginBottom: 5, paddingHorizontal: 15,borderRadius: 10,height: 45,},
     searchInput: {flex: 1,color: '#FFFFFF',fontSize: 16,},
+    suggestionsBox: { backgroundColor: '#1C1C1E', borderWidth: 1, borderColor: Colors.accent, borderRadius: 10, marginHorizontal: 15, marginTop: -5, marginBottom: 10, maxHeight: 180, overflow: 'hidden' },
+    suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    suggestionText: { color: Colors.textPrimary, fontSize: 14, fontWeight: 'bold' }
 });
 //ShiftManagementScreen.js

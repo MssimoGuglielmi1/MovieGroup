@@ -18,6 +18,9 @@ export default function StoricoFounder({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [totalCost, setTotalCost] = useState(0);
     const [searchText, setSearchText] = useState('');
+    const [knownLocations, setKnownLocations] = useState([]);
+    const [filteredLocations, setFilteredLocations] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
     const [showGuide, setShowGuide] = useState(false);
@@ -55,6 +58,15 @@ export default function StoricoFounder({ navigation }) {
 
         return unsubscribe;
     }, []);
+
+    // --- ESTRAZIONE LUOGHI INTELLIGENTE (A COSTO ZERO) ---
+    useEffect(() => {
+        const locSet = new Set();
+        shifts.forEach(s => {
+            if (s.location) locSet.add(s.location.trim());
+        });
+        setKnownLocations(Array.from(locSet).sort());
+    }, [shifts]);
 
     // --- GESTIONE SPUNTA (Seleziona/Deseleziona) ---
     const toggleSelection = (id) => {
@@ -164,6 +176,25 @@ export default function StoricoFounder({ navigation }) {
         );
     });
 
+    // --- GESTIONE TESTO E SUGGERIMENTI ---
+    const handleSearchChange = (text) => {
+        setSearchText(text);
+        if (text.length > 0) {
+            const filtered = knownLocations.filter(loc => 
+                loc.toLowerCase().includes(text.toLowerCase()) && 
+                loc.toLowerCase() !== text.toLowerCase()
+            );
+            setFilteredLocations(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+    const selectSuggestion = (loc) => {
+        setSearchText(loc);
+        setShowSuggestions(false);
+    };
+
     // --- CALCOLO TOTALE DINAMICO (Architetto) ---
     const filteredTotal = filteredShifts.reduce((somma, turno) => somma + parseFloat(turno.realCost || 0), 0);
 
@@ -213,20 +244,35 @@ return (
                 </View>
             </View> 
 
-            {/* BARRA DI RICERCA */}
-            <View style={styles.searchContainer}>
-                <Feather name="search" size={20} color={Colors.textSub} style={{marginRight: 10}} />
-                <TextInput 
-                    style={styles.searchInput}
-                    placeholder="Filtra per Data (es. 2026-01) o Nome..."
-                    placeholderTextColor={Colors.textSub}
-                    value={searchText}
-                    onChangeText={setSearchText}
-                />
-                {searchText.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchText('')}>
-                        <Feather name="x" size={20} color={Colors.textSub} />
-                    </TouchableOpacity>
+            {/* --- BARRA DI RICERCA CON AUTOCOMPLETAMENTO --- */}
+            <View style={{ zIndex: 1000 }}>
+                <View style={styles.searchContainer}>
+                    <Feather name="search" size={20} color={Colors.textSub} style={{marginRight: 10}} />
+                    <TextInput 
+                        style={styles.searchInput}
+                        placeholder="Filtra per Data, Nome o Luogo..."
+                        placeholderTextColor={Colors.textSub}
+                        value={searchText}
+                        onChangeText={handleSearchChange}
+                        onFocus={() => { if(searchText.length > 0 && filteredLocations.length > 0) setShowSuggestions(true); }}
+                    />
+                    {searchText.length > 0 && (
+                        <TouchableOpacity onPress={() => { setSearchText(''); setShowSuggestions(false); }}>
+                            <Feather name="x" size={20} color={Colors.textSub} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {/* LA TENDINA MAGICA */}
+                {showSuggestions && (
+                    <View style={styles.suggestionsBox}>
+                        {filteredLocations.slice(0, 4).map((item, index) => (
+                            <TouchableOpacity key={index} style={styles.suggestionItem} onPress={() => selectSuggestion(item)}>
+                                <Feather name="search" size={14} color={Colors.accent} style={{marginRight: 10}} />
+                                <Text style={styles.suggestionText}>{item}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 )}
             </View>
 
@@ -333,4 +379,7 @@ const styles = StyleSheet.create({
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 10, marginTop: 5 },
     searchContainer: {flexDirection: 'row',alignItems: 'center',backgroundColor: Colors.surface,marginHorizontal: 20,marginTop: 15,paddingHorizontal: 15,borderRadius: 10,height: 45,borderWidth: 1,borderColor: Colors.border},
     searchInput: {flex: 1,color: Colors.textMain,fontSize: 14,fontWeight: 'bold'},
+    suggestionsBox: { backgroundColor: '#1C1C1E', borderWidth: 1, borderColor: Colors.accent, borderRadius: 10, marginHorizontal: 20, marginTop: -5, marginBottom: 10, maxHeight: 180, overflow: 'hidden' },
+    suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    suggestionText: { color: Colors.textMain, fontSize: 14, fontWeight: 'bold' }
 });

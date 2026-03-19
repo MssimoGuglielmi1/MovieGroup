@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAr
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { db, auth } from './firebaseConfig';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
@@ -37,6 +37,9 @@ export default function ModificaTurno({ navigation, route }) {
     };
 
     const [location, setLocation] = useState(shift.location);
+    const [knownLocations, setKnownLocations] = useState([]);
+    const [filteredLocations, setFilteredLocations] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     // Usiamo la funzione sicura qui sotto:
     const [date, setDate] = useState(parseDateSafe(shift.date));
     
@@ -77,6 +80,21 @@ export default function ModificaTurno({ navigation, route }) {
         };
         fetchUserRole();
     }, []);
+    // --- MOTORE AUTOCOMPLETAMENTO LUOGHI ---
+        const fetchLocations = async () => {
+            try {
+                const snap = await getDocs(collection(db, "shifts"));
+                const locSet = new Set();
+                snap.docs.forEach(d => {
+                    const l = d.data().location;
+                    if(l) locSet.add(l.trim());
+                });
+                setKnownLocations(Array.from(locSet).sort());
+            } catch(e) {
+                console.log("Errore lettura luoghi:", e);
+            }
+        };
+        fetchLocations();
 
     // Helper formattazione ora
     const formatTime = (dateObj) => {
@@ -87,6 +105,25 @@ export default function ModificaTurno({ navigation, route }) {
     };
 
     const formatDate = (d) => d.toISOString().split('T')[0];
+    // --- RICERCA INTELLIGENTE TESTO ---
+    const handleLocationChange = (text) => {
+        setLocation(text);
+        if (text.length > 0) {
+            const filtered = knownLocations.filter(loc => 
+                loc.toLowerCase().includes(text.toLowerCase()) && 
+                loc.toLowerCase() !== text.toLowerCase()
+            );
+            setFilteredLocations(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+
+    const selectLocation = (loc) => {
+        setLocation(loc);
+        setShowSuggestions(false);
+    };
 
     // --- FUNZIONE NOTIFICA CAMBIAMENTI ---
     const notifyCollaborator = async (type) => {
@@ -152,7 +189,7 @@ export default function ModificaTurno({ navigation, route }) {
             
             // Prepariamo i dati da aggiornare
             const updateData = {
-                location,
+                location: location.trim(),
                 date: formatDate(date),
                 startTime: formatTime(startTime),
                 endTime: formatTime(endTime),
@@ -172,6 +209,21 @@ export default function ModificaTurno({ navigation, route }) {
             navigation.goBack();
         } catch (e) { Alert.alert("Errore", e.message); }
         setLoading(false);
+    };
+
+    // --- AVVISO DI SICUREZZA MODIFICA ---
+    const triggerSaveWarning = () => {
+        const title = "ATTENZIONE ALLE MODIFICHE ⚠️";
+        const msg = "Stai per sovrascrivere i dati di questo turno.\n\nTi preghiamo di fare MOLTA ATTENZIONE: verifica che tutti gli orari, le pause e i luoghi siano corretti e privi di errori di distrazione.\n\nVuoi procedere con il salvataggio?";
+        
+        if (Platform.OS === 'web') {
+            if (confirm(`${title}\n\n${msg}`)) handleSave();
+        } else {
+            Alert.alert(title, msg, [
+                { text: "Riguardo i dati", style: "cancel" },
+                { text: "SÌ, SALVA", style: "default", onPress: handleSave }
+            ]);
+        }
     };
 
     // --- CESTINO ---
@@ -234,9 +286,28 @@ export default function ModificaTurno({ navigation, route }) {
                 </View>
 
                 {/* FORM PRINCIPALE */}
-                <View style={[styles.card, isRestricted && {opacity: 0.5}]}>
+                <View style={[styles.card, isRestricted && {opacity: 0.5}, {zIndex: 10}]}>
                     <Text style={styles.label}>LUOGO</Text>
-                    <TextInput style={styles.input} value={location} onChangeText={setLocation} editable={!isRestricted} />
+                    {/* --- UI AUTOCOMPLETAMENTO --- */}
+                    <View style={{zIndex: 1000}}>
+                        <TextInput 
+                            style={styles.input} 
+                            value={location} 
+                            onChangeText={handleLocationChange} 
+                            editable={!isRestricted}
+                            onFocus={() => { if(!isRestricted && location.length > 0 && filteredLocations.length > 0) setShowSuggestions(true); }}
+                        />
+                        {showSuggestions && !isRestricted && (
+                            <View style={styles.suggestionsBox}>
+                                {filteredLocations.slice(0, 4).map((item, index) => (
+                                    <TouchableOpacity key={index} style={styles.suggestionItem} onPress={() => selectLocation(item)}>
+                                        <Feather name="search" size={14} color={Colors.accent} style={{marginRight: 10}} />
+                                        <Text style={styles.suggestionText}>{item}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
                     
 <Text style={[styles.label, { color: '#FFFFFF' }]}>NOTE AGGIUNTIVE (FACOLTATIVO)</Text>
 <TextInput 
@@ -354,7 +425,7 @@ export default function ModificaTurno({ navigation, route }) {
                 )}
 
                 {!isRestricted && (
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={loading}>
+                    <TouchableOpacity style={styles.saveBtn} onPress={triggerSaveWarning} disabled={loading}>
                         {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>SALVA MODIFICHE</Text>}
                     </TouchableOpacity>
                 )}
@@ -375,6 +446,9 @@ const styles = StyleSheet.create({
     saveBtn: { backgroundColor: Colors.primary, padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 20 },
     saveText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
     lockedBox: { flexDirection:'row', alignItems:'center', backgroundColor: Colors.yellow+'20', padding: 15, borderRadius: 12, marginBottom: 20, borderWidth:1, borderColor: Colors.yellow },
-    lockedText: { color: Colors.yellow, marginLeft: 10, flex: 1, fontSize: 12 }
+    lockedText: { color: Colors.yellow, marginLeft: 10, flex: 1, fontSize: 12 },
+    suggestionsBox: { backgroundColor: '#1C1C1E', borderWidth: 1, borderColor: Colors.accent, borderRadius: 10, marginTop: 5, maxHeight: 180, overflow: 'hidden' },
+    suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    suggestionText: { color: Colors.textPrimary, fontSize: 14, fontWeight: 'bold' }
 });
 // ModificaTurno.js

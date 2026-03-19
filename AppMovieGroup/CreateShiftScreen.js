@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAr
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { db, auth } from './firebaseConfig';
-import { collection, addDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, doc, onSnapshot, getDocs } from 'firebase/firestore';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
@@ -17,6 +17,9 @@ export default function CreateShiftScreen({ navigation, route }) {
     const { activeCollaborators } = route.params || { activeCollaborators: [] };
     const [selectedCollaborators, setSelectedCollaborators] = useState([]);
     const [location, setLocation] = useState('');
+    const [knownLocations, setKnownLocations] = useState([]);
+    const [filteredLocations, setFilteredLocations] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     
     // Date e Orari Turno
     const [date, setDate] = useState(new Date());
@@ -83,6 +86,22 @@ export default function CreateShiftScreen({ navigation, route }) {
             setIsLoadingSettings(false);
         });
 
+        // --- MOTORE AUTOCOMPLETAMENTO LUOGHI ---
+        const fetchLocations = async () => {
+            try {
+                const snap = await getDocs(collection(db, "shifts"));
+                const locSet = new Set();
+                snap.docs.forEach(d => {
+                    const l = d.data().location;
+                    if(l) locSet.add(l.trim());
+                });
+                setKnownLocations(Array.from(locSet).sort());
+            } catch(e) {
+                console.log("Errore lettura luoghi:", e);
+            }
+        };
+        fetchLocations();
+
         return () => {
             unsubscribeUser();
             unsubscribeConfig();
@@ -137,6 +156,26 @@ export default function CreateShiftScreen({ navigation, route }) {
         } else {
             setSelectedCollaborators(filteredCollaborators.map(c => c.id)); 
         }
+    };
+
+    // --- RICERCA INTELLIGENTE TESTO ---
+    const handleLocationChange = (text) => {
+        setLocation(text);
+        if (text.length > 0) {
+            const filtered = knownLocations.filter(loc => 
+                loc.toLowerCase().includes(text.toLowerCase()) && 
+                loc.toLowerCase() !== text.toLowerCase()
+            );
+            setFilteredLocations(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+
+    const selectLocation = (loc) => {
+        setLocation(loc);
+        setShowSuggestions(false);
     };
 
     // --- FUNZIONE DI SALVATAGGIO ---
@@ -209,57 +248,77 @@ export default function CreateShiftScreen({ navigation, route }) {
             }
         }
 
-        setLoading(true);
-        try {
-            // --- CICLO DI CREAZIONE MULTIPLO ---
-            const createShiftPromises = selectedCollaborators.map(async (collabId) => {
-                const collabData = activeCollaborators.find(c => c.id === collabId);
-                const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
-                const collabRole = collabData ? collabData.role : 'COLLABORATORE';
+// --- LOGICA DI CREAZIONE ISOLATA ---
+        const executeCreation = async () => {
+            setLoading(true);
+            try {
+                const createShiftPromises = selectedCollaborators.map(async (collabId) => {
+                    const collabData = activeCollaborators.find(c => c.id === collabId);
+                    const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
+                    const collabRole = collabData ? collabData.role : 'COLLABORATORE';
 
-                const shiftData = {
-                    collaboratorId: collabId,
-                    collaboratorName: collabName,
-                    collaboratorRole: collabRole,
-                    location: location,
-                    note: note.trim(),
-                    date: formatDate(date),
-                    startTime: formatTime(startTime),
-                    endTime: formatTime(endTime),
-                    
-                    // --- DATI PAUSA ---
-                    hasBreak: hasBreak,
-                    breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
-                    breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
-                    // ------------------
+                    const shiftData = {
+                        collaboratorId: collabId,
+                        collaboratorName: collabName,
+                        collaboratorRole: collabRole,
+                        location: location.trim(),
+                        note: note.trim(),
+                        date: formatDate(date),
+                        startTime: formatTime(startTime),
+                        endTime: formatTime(endTime),
+                        
+                        hasBreak: hasBreak,
+                        breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
+                        breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
 
-                    payoutRate: safeRate,
-                    rateType: rateType,     
-                    status: 'assegnato',     
-                    createdBy: auth.currentUser.uid,
-                    creatorName: creatorName,
-                    createdAt: new Date().toISOString()
-                };
+                        payoutRate: safeRate,
+                        rateType: rateType,     
+                        status: 'assegnato',     
+                        createdBy: auth.currentUser.uid,
+                        creatorName: creatorName,
+                        createdAt: new Date().toISOString()
+                    };
 
-                await addDoc(collection(db, "shifts"), shiftData);
+                    await addDoc(collection(db, "shifts"), shiftData);
 
-                // Notifica Push
-                if (collabData && collabData.expoPushToken) {
-                    const messageBody = `Sei stato convocato per un turno a ${location} il ${formatDate(date)}. Entra e CONFERMA la presenza!`;
-                    await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
-                }
-            });
+                    if (collabData && collabData.expoPushToken) {
+                        const messageBody = `Sei stato convocato per un turno a ${location} il ${formatDate(date)}. Entra e CONFERMA la presenza!`;
+                        await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
+                    }
+                });
 
-            await Promise.all(createShiftPromises);
+                await Promise.all(createShiftPromises);
 
-            showAlert("SUCCESSO ✅", `${selectedCollaborators.length} Turni assegnati correttamente!`);
-            setSelectedCollaborators([]); 
+                showAlert("SUCCESSO ✅", `${selectedCollaborators.length} Turni assegnati correttamente!`);
+                setSelectedCollaborators([]); 
 
-        } catch (error) { 
-            console.error("ERRORE SALVATAGGIO:", error);
-            showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
-        } 
-        finally { setLoading(false); }
+            } catch (error) { 
+                console.error("ERRORE SALVATAGGIO:", error);
+                showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
+            } 
+            finally { setLoading(false); }
+        };
+
+        // --- CONTROLLO: STAI CREANDO UNA NUOVA CARTELLA? ---
+        // Verifichiamo se il luogo digitato non esiste già nell'elenco (ignorando le maiuscole)
+        const isNewFolder = !knownLocations.some(loc => loc.toLowerCase() === location.trim().toLowerCase());
+
+        if (isNewFolder && knownLocations.length > 0) {
+            const title = "NUOVO AMBIENTE DI LAVORO 📁";
+            const msg = `ATTENZIONE: Il luogo "${location.trim()}" non è presente in archivio.\n\nProcedendo verrà creata una NUOVA CARTELLA per questo evento.\n\nSei sicuro che sia scritto correttamente?`;
+            
+            if (Platform.OS === 'web') {
+                if (confirm(`${title}\n\n${msg}`)) executeCreation();
+            } else {
+                Alert.alert(title, msg, [
+                    { text: "Verifico il testo", style: "cancel" },
+                    { text: "SÌ, CREA CARTELLA", style: "default", onPress: executeCreation }
+                ]);
+            }
+        } else {
+            // La cartella esiste già, esegui subito la creazione senza disturbare
+            executeCreation();
+        }
     };
 
     // Callback per Mobile Pickers
@@ -284,7 +343,7 @@ export default function CreateShiftScreen({ navigation, route }) {
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* --- SEZIONE 1: SCELTA PERSONE (MULTI) --- */}
-                <View style={styles.sectionCard}>
+                <View style={[styles.sectionCard, {zIndex: 10}]}>
                     <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:15}}>
                         <View style={{flexDirection:'row', alignItems:'center'}}>
                             <Feather name="users" size={18} color={Colors.accent} />
@@ -328,7 +387,27 @@ export default function CreateShiftScreen({ navigation, route }) {
                 {/* --- SEZIONE 2: LUOGO E ORA --- */}
                 <View style={styles.sectionCard}>
                     <View style={styles.sectionHeader}><Feather name="map-pin" size={18} color={Colors.yellow} /><Text style={[styles.sectionTitle, {color: Colors.yellow}]}>LOCATION & ORARI</Text></View>
-                    <TextInput style={styles.input} placeholder="Luogo o Evento" placeholderTextColor={Colors.textSecondary} value={location} onChangeText={setLocation} />
+                    {/* --- UI AUTOCOMPLETAMENTO --- */}
+                    <View style={{zIndex: 1000}}>
+                        <TextInput 
+                            style={styles.input} 
+                            placeholder="Luogo o Evento (es. Sfera Ebbasta)" 
+                            placeholderTextColor={Colors.textSecondary} 
+                            value={location} 
+                            onChangeText={handleLocationChange} 
+                            onFocus={() => { if(location.length > 0 && filteredLocations.length > 0) setShowSuggestions(true); }}
+                        />
+                        {showSuggestions && (
+                            <View style={styles.suggestionsBox}>
+                                {filteredLocations.slice(0, 4).map((item, index) => (
+                                    <TouchableOpacity key={index} style={styles.suggestionItem} onPress={() => selectLocation(item)}>
+                                        <Feather name="search" size={14} color={Colors.accent} style={{marginRight: 10}} />
+                                        <Text style={styles.suggestionText}>{item}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
                     <View style={styles.divider}/>
 <Text style={[styles.label, { color: '#FFFFFF' }]}>NOTE AGGIUNTIVE (FACOLTATIVO)</Text>
 <TextInput 
@@ -569,5 +648,8 @@ const styles = StyleSheet.create({
     collabItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
     collabItemSelected: { backgroundColor: Colors.success + '20' },
     collabName: { color: Colors.textSecondary, fontSize: 14 },
+    suggestionsBox: { backgroundColor: '#1C1C1E', borderWidth: 1, borderColor: Colors.accent, borderRadius: 10, marginTop: 5, maxHeight: 180, overflow: 'hidden' },
+    suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    suggestionText: { color: Colors.textPrimary, fontSize: 14, fontWeight: 'bold' },
 });
 // CreateShiftScreen.js
