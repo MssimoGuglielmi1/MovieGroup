@@ -21,8 +21,8 @@ export default function CreateShiftScreen({ navigation, route }) {
     const [filteredLocations, setFilteredLocations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     
-    // Date e Orari Turno
-    const [date, setDate] = useState(new Date());
+    // Date e Orari Turno (MULTI-GIORNO)
+    const [dates, setDates] = useState([new Date()]); // Array di date
     const [startTime, setStartTime] = useState(new Date());
     const [endTime, setEndTime] = useState(new Date(new Date().getTime() + 3600000)); // +1 ora default
 
@@ -178,151 +178,194 @@ export default function CreateShiftScreen({ navigation, route }) {
         setShowSuggestions(false);
     };
 
-    // --- FUNZIONE DI SALVATAGGIO ---
+// --- FUNZIONE DI SALVATAGGIO POTENZIATA (RADAR + MULTI-GIORNO) ---
     const handleSave = async () => {
         const showAlert = (title, msg) => {
             if (Platform.OS === 'web') alert(`${title}: ${msg}`);
             else Alert.alert(title, msg);
         };
 
-        // 1. Validazione Base
         if (selectedCollaborators.length === 0 || !location) { 
             showAlert("Mancano dati", "Seleziona almeno un collaboratore e inserisci il luogo."); 
             return; 
         }
         
-        // 2. Validazione Soldi
         const safeRate = parseFloat(payoutRate);
         if (!isConfigured || isNaN(safeRate) || safeRate === 0) { 
             showAlert("Blocco Banca", "Tariffa non valida. Controlla le impostazioni."); 
             return; 
         }
 
-        // 3. Controllo Orario
-        const combinedStart = new Date(
-            date.getFullYear(), date.getMonth(), date.getDate(),
-            startTime.getHours(), startTime.getMinutes()
-        );
-
-        const now = new Date();
-        if (combinedStart < new Date(now.getTime() - 60000)) {
-            showAlert("Orario non valido", "Non puoi assegnare un turno nel passato.");
-            return; 
-        }
-
-        // 4. Validazione Pausa (Se attiva)
+        // 🛡️ BLOCCO SICUREZZA PAUSA
         if (hasBreak) {
-            // Qui potremmo aggiungere controlli, tipo che la pausa non sia più lunga del turno
-            // Ma per ora lasciamo flessibilità.
-        }
+            let bStartObj = new Date(2000, 0, 1, breakStartTime.getHours(), breakStartTime.getMinutes());
+            let bEndObj = new Date(2000, 0, 1, breakEndTime.getHours(), breakEndTime.getMinutes());
+            let sStartObj = new Date(2000, 0, 1, startTime.getHours(), startTime.getMinutes());
+            let sEndObj = new Date(2000, 0, 1, endTime.getHours(), endTime.getMinutes());
 
-        // 🛡️ 4. BLOCCO SICUREZZA PAUSA (NUOVO)
-        if (hasBreak) {
-            // Costruiamo le date complete per la Pausa
-            let bStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakStartTime.getHours(), breakStartTime.getMinutes());
-            let bEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), breakEndTime.getHours(), breakEndTime.getMinutes());
-            
-            // Costruiamo le date complete per il Turno (per confronto preciso)
-            let shiftStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startTime.getHours(), startTime.getMinutes());
-            let shiftEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endTime.getHours(), endTime.getMinutes());
-
-            // GESTIONE NOTTE (Se scavalca la mezzanotte)
-            if (shiftEndObj < shiftStartObj) shiftEndObj.setDate(shiftEndObj.getDate() + 1);
+            if (sEndObj < sStartObj) sEndObj.setDate(sEndObj.getDate() + 1);
             if (bEndObj < bStartObj) bEndObj.setDate(bEndObj.getDate() + 1);
 
-            // Allineamento Pausa se il turno scavalca la notte
-            if (shiftStartObj.getDate() !== shiftEndObj.getDate()) {
-                // Se la pausa è di mattina (es. 02:00) ma il turno iniziava ieri sera (es. 22:00)
-                if (bStartObj.getHours() < 12 && shiftStartObj.getHours() > 12) {
-                    bStartObj.setDate(bStartObj.getDate() + 1);
-                    bEndObj.setDate(bEndObj.getDate() + 1);
-                }
+            if (bStartObj.getHours() < 12 && sStartObj.getHours() > 12) {
+                bStartObj.setDate(bStartObj.getDate() + 1);
+                bEndObj.setDate(bEndObj.getDate() + 1);
             }
 
-            // IL CONTROLLO REALE 👮‍♂️
-            // 1. Pausa inizia PRIMA del turno?
-            // 2. Pausa finisce DOPO il turno?
-            if (bStartObj < shiftStartObj || bEndObj > shiftEndObj) {
-                showAlert("Errore Pausa ⚠️", "La pausa deve essere INTERNA al turno.\nControlla gli orari.");
-                return; // ⛔ STOP
+            if (bStartObj < sStartObj || bEndObj > sEndObj) {
+                showAlert("Errore Pausa ⚠️", "La pausa deve essere INTERNA al turno.");
+                return;
             }
         }
 
-// --- LOGICA DI CREAZIONE ISOLATA ---
-        const executeCreation = async () => {
-            setLoading(true);
-            try {
-                const createShiftPromises = selectedCollaborators.map(async (collabId) => {
-                    const collabData = activeCollaborators.find(c => c.id === collabId);
-                    const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
-                    const collabRole = collabData ? collabData.role : 'COLLABORATORE';
+        setLoading(true);
 
-                    const shiftData = {
-                        collaboratorId: collabId,
-                        collaboratorName: collabName,
-                        collaboratorRole: collabRole,
-                        location: location.trim(),
-                        note: note.trim(),
-                        date: formatDate(date),
-                        startTime: formatTime(startTime),
-                        endTime: formatTime(endTime),
-                        
-                        hasBreak: hasBreak,
-                        breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
-                        breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
+        try {
+            // 📡 IL RADAR ANTI-CLONAZIONE
+            let overlapError = null;
+            const getShiftDateTime = (dateStr, timeStr) => {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                return new Date(year, month - 1, day, hours, minutes, 0);
+            };
 
-                        payoutRate: safeRate,
-                        rateType: rateType,     
-                        status: 'assegnato',     
-                        createdBy: auth.currentUser.uid,
-                        creatorName: creatorName,
-                        createdAt: new Date().toISOString()
-                    };
+            for (const targetDate of dates) {
+                const dateStr = formatDate(targetDate);
+                
+                let newStartObj = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), startTime.getHours(), startTime.getMinutes());
+                let newEndObj = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), endTime.getHours(), endTime.getMinutes());
+                if (newEndObj < newStartObj) newEndObj.setDate(newEndObj.getDate() + 1);
 
-                    await addDoc(collection(db, "shifts"), shiftData);
+                // Scansiona i turni solo per questo giorno esatto
+                const qDay = query(collection(db, "shifts"), where("date", "==", dateStr));
+                const snapDay = await getDocs(qDay);
+                const shiftsOnDay = snapDay.docs.map(d => d.data());
 
-                    if (collabData && collabData.expoPushToken) {
-                        const messageBody = `Sei stato convocato per un turno a ${location} il ${formatDate(date)}. Entra e CONFERMA la presenza!`;
-                        await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
+                for (const collabId of selectedCollaborators) {
+                    const collabShifts = shiftsOnDay.filter(s => 
+                        s.collaboratorId === collabId && 
+                        ['assegnato', 'accettato', 'in-corso'].includes(s.status)
+                    );
+
+                    for (const s of collabShifts) {
+                        let exStart = getShiftDateTime(s.date, s.startTime);
+                        let exEnd = getShiftDateTime(s.date, s.endTime);
+                        if (exEnd < exStart) exEnd.setDate(exEnd.getDate() + 1);
+
+                        // Se gli orari si incrociano...
+                        if (newStartObj < exEnd && newEndObj > exStart) {
+                            overlapError = `⚠️ CONFLITTO RILEVATO!\n\n${s.collaboratorName} il giorno ${dateStr} è già impegnato a "${s.location}" dalle ${s.startTime} alle ${s.endTime}.\n\nModifica gli orari o rimuovi il collaboratore.`;
+                            break;
+                        }
                     }
-                });
-
-                await Promise.all(createShiftPromises);
-
-                showAlert("SUCCESSO ✅", `${selectedCollaborators.length} Turni assegnati correttamente!`);
-                setSelectedCollaborators([]); 
-
-            } catch (error) { 
-                console.error("ERRORE SALVATAGGIO:", error);
-                showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
-            } 
-            finally { setLoading(false); }
-        };
-
-        // --- CONTROLLO: STAI CREANDO UNA NUOVA CARTELLA? ---
-        // Verifichiamo se il luogo digitato non esiste già nell'elenco (ignorando le maiuscole)
-        const isNewFolder = !knownLocations.some(loc => loc.toLowerCase() === location.trim().toLowerCase());
-
-        if (isNewFolder && knownLocations.length > 0) {
-            const title = "NUOVO AMBIENTE DI LAVORO 📁";
-            const msg = `ATTENZIONE: Il luogo "${location.trim()}" non è presente in archivio.\n\nProcedendo verrà creata una NUOVA CARTELLA per questo evento.\n\nSei sicuro che sia scritto correttamente?`;
-            
-            if (Platform.OS === 'web') {
-                if (confirm(`${title}\n\n${msg}`)) executeCreation();
-            } else {
-                Alert.alert(title, msg, [
-                    { text: "Verifico il testo", style: "cancel" },
-                    { text: "SÌ, CREA CARTELLA", style: "default", onPress: executeCreation }
-                ]);
+                    if (overlapError) break;
+                }
+                if (overlapError) break;
             }
-        } else {
-            // La cartella esiste già, esegui subito la creazione senza disturbare
-            executeCreation();
+
+            // Se il radar trova un intruso, blocca tutto!
+            if (overlapError) {
+                setLoading(false);
+                showAlert("Scudo Temporale Attivo", overlapError);
+                return; 
+            }
+
+            // --- LA FABBRICA DEI TURNI ---
+            const executeCreation = async () => {
+                try {
+                    setLoading(true);
+                    let totalCreated = 0;
+
+                    for (const targetDate of dates) {
+                        const createShiftPromises = selectedCollaborators.map(async (collabId) => {
+                            const collabData = activeCollaborators.find(c => c.id === collabId);
+                            const collabName = collabData ? `${collabData.firstName} ${collabData.lastName}` : "Sconosciuto";
+                            
+                            const shiftData = {
+                                collaboratorId: collabId,
+                                collaboratorName: collabName,
+                                collaboratorRole: collabData ? collabData.role : 'COLLABORATORE',
+                                location: location.trim(),
+                                note: note.trim(),
+                                date: formatDate(targetDate), // <-- Assegna al giorno giusto
+                                startTime: formatTime(startTime),
+                                endTime: formatTime(endTime),
+                                hasBreak: hasBreak,
+                                breakStartTime: hasBreak ? formatTime(breakStartTime) : null,
+                                breakEndTime: hasBreak ? formatTime(breakEndTime) : null,
+                                payoutRate: safeRate,
+                                rateType: rateType,     
+                                status: 'assegnato',     
+                                createdBy: auth.currentUser.uid,
+                                creatorName: creatorName,
+                                createdAt: new Date().toISOString()
+                            };
+
+                            await addDoc(collection(db, "shifts"), shiftData);
+                            totalCreated++;
+
+                            if (collabData && collabData.expoPushToken) {
+                                const messageBody = `Convocazione per ${location} il ${formatDate(targetDate)}. Entra nell'app e CONFERMA!`;
+                                await sendPushNotification(collabData.expoPushToken, "🚨 NUOVA CONVOCAZIONE", messageBody);
+                            }
+                        });
+                        await Promise.all(createShiftPromises);
+                    }
+
+                    showAlert("SUCCESSO ✅", `Creati ${totalCreated} turni!\n(${dates.length} giorni x ${selectedCollaborators.length} operatori)`);
+                    setSelectedCollaborators([]); 
+                    setDates([new Date()]); // Svuota la cache date
+                    
+                } catch (error) { 
+                    showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
+                } finally { 
+                    setLoading(false); 
+                }
+            };
+
+            // CONTROLLO CARTELLA
+            const isNewFolder = !knownLocations.some(loc => loc.toLowerCase() === location.trim().toLowerCase());
+
+            if (isNewFolder && knownLocations.length > 0) {
+                const msg = `ATTENZIONE: Il luogo "${location.trim()}" non è in archivio.\n\nVerrà creata una NUOVA CARTELLA. Sicuro sia scritto giusto?`;
+                if (Platform.OS === 'web') {
+                    if (confirm(`NUOVO AMBIENTE 📁\n\n${msg}`)) executeCreation();
+                    else setLoading(false);
+                } else {
+                    Alert.alert("NUOVO AMBIENTE 📁", msg, [
+                        { text: "Verifico", style: "cancel", onPress: () => setLoading(false) },
+                        { text: "SÌ, CREA", style: "default", onPress: executeCreation }
+                    ]);
+                }
+            } else {
+                executeCreation();
+            }
+
+        } catch (error) {
+            setLoading(false);
+            console.error("Errore Radar:", error);
+            showAlert("Errore di Sistema", "Controlla la connessione.");
         }
     };
 
     // Callback per Mobile Pickers
-    const onDateChange = (event, selectedDate) => { setShowDatePicker(false); if(selectedDate) setDate(selectedDate); };
+    // Callback per Mobile Pickers (MULTI-GIORNO)
+    const onDateChange = (event, selectedDate) => { 
+        setShowDatePicker(false); 
+        if(selectedDate) {
+            const dateStr = formatDate(selectedDate);
+            if (!dates.some(d => formatDate(d) === dateStr)) {
+                setDates(prev => [...prev, selectedDate].sort((a,b) => a - b));
+            } else {
+                if (Platform.OS === 'web') alert("Giorno già inserito.");
+                else Alert.alert("Attenzione", "Questo giorno è già nella lista.");
+            }
+        } 
+    };
+    const removeDate = (indexToRemove) => {
+        if (dates.length > 1) setDates(prev => prev.filter((_, idx) => idx !== indexToRemove));
+        else if (Platform.OS === 'web') alert("Devi lasciare almeno un giorno.");
+        else Alert.alert("Attenzione", "Devi lasciare almeno un giorno per il turno.");
+    };
     const onStartTimeChange = (event, selectedDate) => { setShowStartTimePicker(false); if(selectedDate) setStartTime(selectedDate); };
     const onEndTimeChange = (event, selectedDate) => { setShowEndTimePicker(false); if(selectedDate) setEndTime(selectedDate); };
     
@@ -420,33 +463,49 @@ export default function CreateShiftScreen({ navigation, route }) {
     maxLength={300}
 />
 
-                    {/* --- DATA --- */}
-                    <Text style={[styles.smallLabel, {marginBottom:5}]}>DATA EVENTO</Text>
-                    {Platform.OS === 'web' ? (
-                        <View style={{height: 50, marginBottom: 15}}>
+                    {/* --- DATE EVENTO (MULTI-GIORNO) --- */}
+                    <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, marginBottom: 5}}>
+                        <Text style={styles.smallLabel}>DATE EVENTO ({dates.length})</Text>
+                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.accent+'20', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8}}>
+                            <Feather name="plus" size={14} color={Colors.accent} />
+                            <Text style={{color: Colors.accent, fontSize: 10, fontWeight: 'bold', marginLeft: 4}}>AGGIUNGI GIORNO</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* LISTA DEI GIORNI SELEZIONATI */}
+                    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15}}>
+                        {dates.map((d, index) => (
+                            <View key={index} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', borderWidth: 1, borderColor: Colors.accent, borderRadius: 8, paddingLeft: 10}}>
+                                <Text style={{color: '#FFF', fontSize: 14, fontWeight: 'bold', paddingVertical: 8}}>{formatDate(d)}</Text>
+                                <TouchableOpacity onPress={() => removeDate(index)} style={{padding: 10}}>
+                                    <Feather name="x" size={16} color={Colors.error} />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* PICKER INVISIBILE PER LA SELEZIONE (Mobile & Web) */}
+                    {Platform.OS === 'web' && (
+                        <View style={{height: 40, marginBottom: 15}}>
                             <input 
                                 type="date"
-                                value={formatDate(date)} 
-                                onChange={(e) => setDate(new Date(e.target.value))}
-                                style={{
-                                    width: '100%', height: '100%',
-                                    backgroundColor: 'white', color: 'black',
-                                    borderRadius: '10px', border: '1px solid #333',
-                                    padding: '10px', fontSize: '16px'
+                                onChange={(e) => {
+                                    if(e.target.value) {
+                                        const newD = new Date(e.target.value);
+                                        const dateStr = formatDate(newD);
+                                        if (!dates.some(d => formatDate(d) === dateStr)) {
+                                            setDates(prev => [...prev, newD].sort((a,b) => a - b));
+                                        }
+                                    }
                                 }}
+                                style={{ width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '8px', border: '1px solid #333', padding: '5px', fontSize: '14px' }}
                             />
                         </View>
-                    ) : (
-                        <>
-                            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-                                <Feather name="calendar" size={20} color={Colors.textPrimary} />
-                                <Text style={styles.dateText}>{formatDate(date)}</Text>
-                            </TouchableOpacity>
-                            {showDatePicker && (
-                                <DateTimePicker value={date} mode="date" display="default" onChange={onDateChange} minimumDate={new Date()} />
-                            )}
-                        </>
                     )}
+
+                    {!Platform.OS === 'web' || showDatePicker ? (
+                        showDatePicker && <DateTimePicker value={new Date()} mode="date" display="default" onChange={onDateChange} minimumDate={new Date()} />
+                    ) : null}
 
                     {/* --- ORARI TURNO --- */}
                     <View style={styles.row}>
