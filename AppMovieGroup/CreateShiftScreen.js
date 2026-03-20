@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAr
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { db, auth } from './firebaseConfig';
-import { collection, addDoc, doc, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, addDoc, doc, onSnapshot, getDocs, query, where } from 'firebase/firestore';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
@@ -223,9 +223,11 @@ export default function CreateShiftScreen({ navigation, route }) {
             // 📡 IL RADAR ANTI-CLONAZIONE
             let overlapError = null;
             const getShiftDateTime = (dateStr, timeStr) => {
-                const [year, month, day] = dateStr.split('-').map(Number);
-                const [hours, minutes] = timeStr.split(':').map(Number);
-                return new Date(year, month - 1, day, hours, minutes, 0);
+                // SCUDO: Se un vecchio turno nel DB è corrotto o manca di orario, lo bypassiamo senza far crashare l'app
+                if (!dateStr || !timeStr || typeof timeStr !== 'string') return new Date(0); 
+                const [year, month, day] = String(dateStr).split('-').map(Number);
+                const [hours, minutes] = String(timeStr).split(':').map(Number);
+                return new Date(year, month - 1, day, hours, minutes || 0, 0);
             };
 
             for (const targetDate of dates) {
@@ -485,7 +487,7 @@ export default function CreateShiftScreen({ navigation, route }) {
                     </View>
 
                     {/* PICKER INVISIBILE PER LA SELEZIONE (Mobile & Web) */}
-                    {Platform.OS === 'web' && (
+                    {Platform.OS === 'web' && showDatePicker && (
                         <View style={{height: 40, marginBottom: 15}}>
                             <input 
                                 type="date"
@@ -496,6 +498,7 @@ export default function CreateShiftScreen({ navigation, route }) {
                                         if (!dates.some(d => formatDate(d) === dateStr)) {
                                             setDates(prev => [...prev, newD].sort((a,b) => a - b));
                                         }
+                                        setShowDatePicker(false); // Nasconde l'input subito dopo la selezione
                                     }
                                 }}
                                 style={{ width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '8px', border: '1px solid #333', padding: '5px', fontSize: '14px' }}
@@ -515,12 +518,12 @@ export default function CreateShiftScreen({ navigation, route }) {
                                 <View style={{height: 50}}>
                                     <input 
                                         type="time"
-                                        value={startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                        value={formatTime(startTime)}
                                         onChange={(e) => {
                                             if(!e.target.value) return;
                                             const [h, m] = e.target.value.split(':');
                                             const newTime = new Date(startTime);
-                                            newTime.setHours(h); newTime.setMinutes(m);
+                                            newTime.setHours(Number(h)); newTime.setMinutes(Number(m));
                                             setStartTime(newTime);
                                         }}
                                         style={{width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '10px', border: '1px solid #333', padding: '10px', fontSize: '16px'}}
@@ -542,12 +545,12 @@ export default function CreateShiftScreen({ navigation, route }) {
                                 <View style={{height: 50}}>
                                     <input 
                                         type="time"
-                                        value={endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                        value={formatTime(endTime)}
                                         onChange={(e) => {
                                             if(!e.target.value) return;
                                             const [h, m] = e.target.value.split(':');
                                             const newTime = new Date(endTime);
-                                            newTime.setHours(h); newTime.setMinutes(m);
+                                            newTime.setHours(Number(h)); newTime.setMinutes(Number(m));
                                             setEndTime(newTime);
                                         }}
                                         style={{width: '100%', height: '100%', backgroundColor: 'white', color: 'black', borderRadius: '10px', border: '1px solid #333', padding: '10px', fontSize: '16px'}}
@@ -591,12 +594,12 @@ export default function CreateShiftScreen({ navigation, route }) {
                                         <View style={{height: 50}}>
                                             <input 
                                                 type="time"
-                                                value={breakStartTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                                value={formatTime(breakStartTime)}
                                                 onChange={(e) => {
                                                     if(!e.target.value) return;
                                                     const [h, m] = e.target.value.split(':');
                                                     const newTime = new Date(breakStartTime);
-                                                    newTime.setHours(h); newTime.setMinutes(m);
+                                                    newTime.setHours(Number(h)); newTime.setMinutes(Number(m));
                                                     setBreakStartTime(newTime);
                                                 }}
                                                 style={{width: '100%', height: '100%', backgroundColor: '#fff7ed', color: 'black', borderRadius: '10px', border: '1px solid orange', padding: '10px', fontSize: '16px'}}
@@ -619,12 +622,12 @@ export default function CreateShiftScreen({ navigation, route }) {
                                         <View style={{height: 50}}>
                                             <input 
                                                 type="time"
-                                                value={breakEndTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                                                value={formatTime(breakEndTime)}
                                                 onChange={(e) => {
                                                     if(!e.target.value) return;
                                                     const [h, m] = e.target.value.split(':');
                                                     const newTime = new Date(breakEndTime);
-                                                    newTime.setHours(h); newTime.setMinutes(m);
+                                                    newTime.setHours(Number(h)); newTime.setMinutes(Number(m));
                                                     setBreakEndTime(newTime);
                                                 }}
                                                 style={{width: '100%', height: '100%', backgroundColor: '#fff7ed', color: 'black', borderRadius: '10px', border: '1px solid orange', padding: '10px', fontSize: '16px'}}

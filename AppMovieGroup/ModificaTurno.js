@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAr
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { db, auth } from './firebaseConfig';
-import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { sendPushNotification } from './Notifiche';
 
 const Colors = {
@@ -185,6 +185,52 @@ export default function ModificaTurno({ navigation, route }) {
                     return; // ⛔ STOP
                 }
             }
+
+            // 📡 IL RADAR ANTI-CLONAZIONE IN MODIFICA
+            let overlapError = null;
+            const getShiftDateTime = (dateStr, timeStr) => {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                return new Date(year, month - 1, day, hours, minutes, 0);
+            };
+
+            const targetDateStr = formatDate(date);
+            let newStartObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startTime.getHours(), startTime.getMinutes());
+            let newEndObj = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endTime.getHours(), endTime.getMinutes());
+            if (newEndObj < newStartObj) newEndObj.setDate(newEndObj.getDate() + 1);
+
+            // 1. Scansiona i turni solo per questo giorno esatto
+            const qDay = query(collection(db, "shifts"), where("date", "==", targetDateStr));
+            const snapDay = await getDocs(qDay);
+            const shiftsOnDay = snapDay.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // 2. Filtra per questo collaboratore, escludendo IL TURNO CORRENTE (s.id !== shift.id)
+            const collabShifts = shiftsOnDay.filter(s => 
+                s.collaboratorId === shift.collaboratorId && 
+                s.id !== shift.id && // <--- L'ISTRUZIONE FONDAMENTALE!
+                ['assegnato', 'accettato', 'in-corso'].includes(s.status)
+            );
+
+            // 3. Controlla se gli orari sbattono l'uno contro l'altro
+            for (const s of collabShifts) {
+                let exStart = getShiftDateTime(s.date, s.startTime);
+                let exEnd = getShiftDateTime(s.date, s.endTime);
+                if (exEnd < exStart) exEnd.setDate(exEnd.getDate() + 1);
+
+                if (newStartObj < exEnd && newEndObj > exStart) {
+                    overlapError = `⚠️ CONFLITTO RILEVATO!\n\n${shift.collaboratorName} il giorno ${targetDateStr} è già impegnato a "${s.location}" dalle ${s.startTime} alle ${s.endTime}.\n\nModifica gli orari per procedere.`;
+                    break;
+                }
+            }
+
+            // Se il radar trova un intruso, blocca tutto!
+            if (overlapError) {
+                setLoading(false);
+                if (Platform.OS === 'web') alert(overlapError);
+                else Alert.alert("Scudo Temporale Attivo", overlapError);
+                return; // Ferma il salvataggio
+            }
+            // --- FINE RADAR ---
             const shiftRef = doc(db, "shifts", shift.id);
             
             // Prepariamo i dati da aggiornare
