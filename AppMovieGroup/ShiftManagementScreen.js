@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Platform, Alert, Linking, ActivityIndicator, TextInput, Modal, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { db, auth } from './firebaseConfig';
-import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where, serverTimestamp } from 'firebase/firestore'; 
+import { doc, deleteDoc, updateDoc, collection, query, onSnapshot, getDoc, where, serverTimestamp, addDoc } from 'firebase/firestore'; 
 import * as Location from 'expo-location';
 import { sendPushNotification } from './Notifiche';
 import WelcomeModal from './WelcomeModal';
@@ -71,6 +71,65 @@ export default function ShiftManagementScreen({ navigation }) {
             Alert.alert("Successo", "Turno aggiornato.");
         } catch (error) {
             Alert.alert("Errore", error.message);
+        }
+    };
+
+    // --- STATO RIASSEGNAZIONE ---
+    const [reassignModalVisible, setReassignModalVisible] = useState(false);
+    const [shiftToReassign, setShiftToReassign] = useState(null);
+    const [collabsList, setCollabsList] = useState([]);
+
+    useEffect(() => {
+        const fetchCollabs = async () => {
+            const q = query(collection(db, "users"), where("role", "==", "COLLABORATORE"));
+            const snap = await getDocs(q);
+            let list = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            list.sort((a,b) => {
+                const nameA = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+                const nameB = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+            setCollabsList(list);
+        };
+        fetchCollabs();
+    }, []);
+
+    const openReassignModal = (shift) => {
+        setShiftToReassign(shift);
+        setReassignModalVisible(true);
+    };
+
+    const handleReassign = async (newCollab) => {
+        if (!shiftToReassign) return;
+        setLoadingAction(true);
+        try {
+            // Copiamo i dati del turno vecchio e inseriamo il nuovo operatore
+            const shiftData = {
+                ...shiftToReassign,
+                collaboratorId: newCollab.id,
+                collaboratorName: `${newCollab.firstName} ${newCollab.lastName}`,
+                collaboratorRole: newCollab.role,
+                status: 'assegnato',
+                createdAt: new Date().toISOString(),
+                realStartTime: null,
+                realEndTime: null
+            };
+            delete shiftData.id; // Togliamo il vecchio ID
+
+            await addDoc(collection(db, "shifts"), shiftData); // Crea il nuovo
+            await deleteDoc(doc(db, "shifts", shiftToReassign.id)); // Cestina in automatico il rifiutato!
+
+            if (newCollab.expoPushToken) {
+                await sendPushNotification(newCollab.expoPushToken, "🚨 NUOVA CONVOCAZIONE", `Sei stato riassegnato a ${shiftData.location} il ${shiftData.date}.`);
+            }
+
+            setReassignModalVisible(false);
+            setShiftToReassign(null);
+            Alert.alert("Fatto", `Turno riassegnato a ${newCollab.firstName}.`);
+        } catch (e) {
+            Alert.alert("Errore", e.message);
+        } finally {
+            setLoadingAction(false);
         }
     };
 
@@ -307,6 +366,31 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
             }
         };
 
+        // --- 6. CESTINA TURNO (Per Rifiutati e Ignorati) ---
+    const handleDeleteGarbage = (shiftId) => {
+        const executeDelete = async () => {
+            setLoadingAction(true);
+            try {
+                await deleteDoc(doc(db, "shifts", shiftId));
+                if (Platform.OS === 'web') alert("Turno cestinato definitivamente.");
+            } catch (e) {
+                if (Platform.OS === 'web') alert("Errore: " + e.message);
+                else Alert.alert("Errore", e.message);
+            } finally {
+                setLoadingAction(false);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (confirm("Vuoi cestinare definitivamente questo turno?")) executeDelete();
+        } else {
+            Alert.alert("Cestina Turno", "Vuoi eliminare definitivamente questa pratica morta?", [
+                { text: "Annulla", style: "cancel" },
+                { text: "Sì, Cestina", style: "destructive", onPress: executeDelete }
+            ]);
+        }
+    };
+
         // BIVIO WEB vs APP
         if (Platform.OS === 'web') {
             if (confirm(`${title}\n\n${msg}`)) {
@@ -417,7 +501,7 @@ const renderShiftItem = ({ item }) => {
         // 1. Logica Standard
         if (statusLower === 'completato') { badgeColor = Colors.success; badgeText = "SALVATO"; }
         else if (statusLower === 'rifiutato') { badgeColor = Colors.error; badgeText = "RIFIUTATO"; }
-        else if (statusLower === 'scaduto') { badgeColor = '#64748b'; badgeText = "NON CONFERMATO"; } 
+        else if (statusLower === 'scaduto') { badgeColor = '#64748b'; badgeText = "IGNORATO"; } 
         // 2. Logica Speciale: ACCETTATO ma NON PARTITO (Il tuo "Grigio Attenzione")
         else if (statusLower === 'accettato') {
             // Calcoliamo l'ora di inizio prevista
@@ -453,13 +537,12 @@ const renderShiftItem = ({ item }) => {
             return (
                 <View style={[styles.card, { opacity: 0.8, borderColor: Colors.border }]}>
                     
-                    {/* 🔥 GOD MODE: TASTO MODIFICA (POSIZIONE ASSOLUTA: ANGOLO IN ALTO A DESTRA) 🔥 */}
-                    {(isFounder || currentUserRole === 'AMMINISTRATORE') && (
+                    {/* 🔥 GOD MODE: TASTO MODIFICA (Mostrato SOLO per i turni completati) 🔥 */}
+                    {(isFounder || currentUserRole === 'AMMINISTRATORE') && statusLower === 'completato' && (
                         <TouchableOpacity 
                             onPress={() => openEditModal(item)} 
                             style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, padding: 5 }}
                         >
-                            {/* Stessa icona piccola e grigia degli Operativi */}
                             <Feather name="edit-2" size={14} color={Colors.textSecondary} />
                         </TouchableOpacity>
                     )}
@@ -482,6 +565,31 @@ const renderShiftItem = ({ item }) => {
                     </View>
                     {item.adminOverride && (
                         <Text style={{color: Colors.warning, fontSize:10, marginTop:5, fontStyle:'italic'}}>* Convalidato Manualmente</Text>
+                    )}
+                    {/* AZIONI STORICO (Cestina e Riassegna) INSERITE NEL POSTO GIUSTO */}
+                    {(isFounder || currentUserRole === 'AMMINISTRATORE') && (statusLower === 'rifiutato' || statusLower === 'scaduto') && (
+                        <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, flexDirection: 'row', gap: 10 }}>
+
+                            {/* TASTO CESTINA (Per Rifiutati e Ignorati) */}
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: Colors.error, flex: 1, margin: 0, marginBottom: 0 }]}
+                                onPress={() => handleDeleteGarbage(item.id)}
+                            >
+                                <Feather name="trash-2" size={14} color="#FFF" />
+                                <Text style={[styles.actionBtnText, { color: '#FFF', fontSize: 10 }]}>CESTINA</Text>
+                            </TouchableOpacity>
+
+                            {/* TASTO RIASSEGNA (SOLO per Rifiutati) */}
+                            {statusLower === 'rifiutato' && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: Colors.accent, flex: 1, margin: 0, marginBottom: 0 }]}
+                                    onPress={() => openReassignModal(item)}
+                                >
+                                    <Feather name="refresh-cw" size={14} color="#FFF" />
+                                    <Text style={[styles.actionBtnText, { color: '#FFF', fontSize: 10 }]}>RIASSEGNA</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     )}
                 </View>
             );
@@ -739,6 +847,36 @@ return (
                 onClose={() => setShowGuide(false)} 
                 userRole="GESTORE_TURNI"  // <--- PRIMA ERA "AMMINISTRATORE", ORA CAMBIALO COSÌ
             />
+            {/* --- MODAL RIASSEGNAZIONE (NUOVO) --- */}
+            <Modal visible={reassignModalVisible} transparent={true} animationType="fade">
+                <View style={{flex:1, backgroundColor:'rgba(0,0,0,0.8)', justifyContent:'center', padding: 20}}>
+                    <View style={{backgroundColor: Colors.surface, borderRadius: 16, padding: 20, maxHeight: '80%', borderWidth: 1, borderColor: Colors.accent}}>
+                        <Text style={{color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center'}}>
+                            RIASSEGNA TURNO
+                        </Text>
+                        <Text style={{color: Colors.textSecondary, marginBottom: 15, textAlign: 'center'}}>
+                            Seleziona il nuovo operatore:
+                        </Text>
+
+                        <ScrollView>
+                            {collabsList.map(c => (
+                                <TouchableOpacity
+                                    key={c.id}
+                                    style={{padding: 15, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', alignItems: 'center'}}
+                                    onPress={() => handleReassign(c)}
+                                >
+                                    <Feather name="user" size={18} color={Colors.accent} style={{marginRight: 10}} />
+                                    <Text style={{color: '#FFF', fontSize: 16, fontWeight: 'bold'}}>{c.firstName} {c.lastName}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity onPress={() => setReassignModalVisible(false)} style={{marginTop: 20, padding: 15, backgroundColor: Colors.border, borderRadius: 10, alignItems: 'center'}}>
+                            <Text style={{color: '#FFF', fontWeight: 'bold'}}>ANNULLA</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
             {/* --- MODAL GOD MODE --- */}
             <Modal visible={editModalVisible} transparent={true} animationType="slide">
                 <View style={{flex:1, backgroundColor:'rgba(0,0,0,0.8)', justifyContent:'center', alignItems:'center'}}>

@@ -108,13 +108,14 @@ export default function CreateShiftScreen({ navigation, route }) {
         };
     }, []);
 
-// FILTRO LISTA PERSONE (CON BLOCCO AUTO-ASSEGNAZIONE ⛔)
     const filteredCollaborators = activeCollaborators.filter(c => {
-        // 1. Regola Base: Non mostrare MAI me stesso
         if (c.id === auth.currentUser.uid) return false;
-        // 2. Regole Ruoli
         if (creatorRole === 'FOUNDER') return true; 
         return c.role === 'COLLABORATORE'; 
+    }).sort((a, b) => {
+        const nomeA = `${a.firstName} ${a.lastName}`.toLowerCase();
+        const nomeB = `${b.firstName} ${b.lastName}`.toLowerCase();
+        return nomeA.localeCompare(nomeB);
     });
 
     const formatDate = (dateObj) => {
@@ -314,8 +315,6 @@ export default function CreateShiftScreen({ navigation, route }) {
                     }
 
                     showAlert("SUCCESSO ✅", `Creati ${totalCreated} turni!\n(${dates.length} giorni x ${selectedCollaborators.length} operatori)`);
-                    setSelectedCollaborators([]); 
-                    setDates([new Date()]); // Svuota la cache date
                     
                 } catch (error) { 
                     showAlert("Errore", "Impossibile salvare i turni: " + error.message); 
@@ -436,7 +435,7 @@ export default function CreateShiftScreen({ navigation, route }) {
                     <View style={{zIndex: 1000}}>
                         <TextInput 
                             style={styles.input} 
-                            placeholder="Luogo o Evento (es. Sfera Ebbasta)" 
+                            placeholder="Luogo ed Evento (CREA LA CARTELLA)"
                             placeholderTextColor={Colors.textSecondary} 
                             value={location} 
                             onChangeText={handleLocationChange} 
