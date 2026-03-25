@@ -23,6 +23,7 @@ export default function ShiftManagementScreen({ navigation }) {
     const [knownLocations, setKnownLocations] = useState([]);
     const [filteredLocations, setFilteredLocations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [historyFilter, setHistoryFilter] = useState('TUTTI');
     // --- STATO CARTELLE DINAMICHE ---
     const [openFolders, setOpenFolders] = useState({});
     const toggleFolder = (locationName) => {
@@ -441,13 +442,19 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
 // Aggiungi 'scaduto' alla lista
 const isHistoryStatus = (s) => ['completato', 'rifiutato', 'rejected', 'scaduto'].includes((s||'').toLowerCase());
 
-// --- ORDINAMENTO INTELLIGENTE ---
-    // Funzione per ordinare dal più VICINO al più LONTANO (Urgenti in alto)
-    const sortAscending = (a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime);
-    // Funzione per ordinare dal più RECENTE al più VECCHIO (Ultimi chiusi in alto)
-    const sortDescending = (a, b) => new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime);
-    // --- FUNZIONE DI RICERCA ---
-    // --- GESTIONE TESTO E SUGGERIMENTI ---
+// --- ORDINAMENTO INTELLIGENTE E RICERCA ---
+
+    // 1. Motore Alfabetico (e poi per data/ora a parità di nome)
+    const sortAlphabetical = (a, b) => {
+        const nameA = (a.collaboratorName || '').toLowerCase();
+        const nameB = (b.collaboratorName || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        // A parità di nome, ordiniamo per data e ora
+        return new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime);
+    };
+
+    // 2. Gestione Testo e Suggerimenti (Manteniamo intatta la tua ricerca!)
     const handleSearchChange = (text) => {
         setSearchText(text);
         if (text.length > 0) {
@@ -461,10 +468,12 @@ const isHistoryStatus = (s) => ['completato', 'rifiutato', 'rejected', 'scaduto'
             setShowSuggestions(false);
         }
     };
+    
     const selectSuggestion = (loc) => {
         setSearchText(loc);
         setShowSuggestions(false);
     };
+
     const filterBySearch = (list) => {
         if (!searchText) return list; // Se non scrivi nulla, mostra tutto
         const lowerText = searchText.toLowerCase();
@@ -474,18 +483,33 @@ const isHistoryStatus = (s) => ['completato', 'rifiutato', 'rejected', 'scaduto'
             (item.date || '').includes(lowerText)
         );
     };
-// 1. DA CONFERMARE
+
+    // --- GENERAZIONE LISTE CON NUOVI FILTRI ---
+
+    // 1. DA CONFERMARE (Ordine Alfabetico)
     const shiftsPending = filterBySearch(
-        allShifts.filter(s => isPendingStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAscending)
+        allShifts.filter(s => isPendingStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAlphabetical)
     );
-    // 2. OPERATIVI
+    // 2. OPERATIVI (Ordine Alfabetico)
     const shiftsActive = filterBySearch(
-        allShifts.filter(s => isActiveStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAscending)
+        allShifts.filter(s => isActiveStatus(s.status) && s.collaboratorId !== currentUserId).sort(sortAlphabetical)
     );
-    // 3. STORICO
+    // 3. STORICO (Ordine Alfabetico + Nuovo Filtro a 4 vie per il Vantaggio Strategico)
     const shiftsHistory = filterBySearch(
-        allShifts.filter(s => isHistoryStatus(s.status)).sort(sortDescending)
+        allShifts.filter(s => {
+            if (!isHistoryStatus(s.status)) return false;
+            const st = (s.status || '').toLowerCase();
+            
+            // Logica chirurgica del nuovo filtro
+            if (historyFilter === 'SALVATO' && st !== 'completato') return false;
+            if (historyFilter === 'RIFIUTATO' && st !== 'rifiutato') return false;
+            if (historyFilter === 'IGNORATO' && st !== 'scaduto') return false;
+            
+            return true; // Se il filtro è "TUTTI", passa tutto
+        }).sort(sortAlphabetical)
     );
+
+    // ----------------------------------------------------------------------
 const renderShiftItem = ({ item }) => {
         const isMyShift = item.collaboratorId === currentUserId; 
         const statusLower = (item.status || '').toLowerCase();
@@ -773,6 +797,37 @@ return (
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'PROGRAM' && styles.tabActive]} onPress={() => setCurrentTab('PROGRAM')}><Text style={[styles.tabText, currentTab === 'PROGRAM' && styles.tabTextActive]}>OPERATIVI</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.tabButton, currentTab === 'HISTORY' && styles.tabActive]} onPress={() => setCurrentTab('HISTORY')}><Text style={[styles.tabText, currentTab === 'HISTORY' && styles.tabTextActive]}>STORICO</Text></TouchableOpacity>
             </View>
+
+            {/* 🔥 NUOVO FILTRO STORICO (Appare solo se sei nella tab STORICO) 🔥 */}
+            {currentTab === 'HISTORY' && (
+                <View style={{ paddingHorizontal: 15, paddingVertical: 10, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                        {['TUTTI', 'SALVATO', 'RIFIUTATO', 'IGNORATO'].map(filterOption => (
+                            <TouchableOpacity 
+                                key={filterOption}
+                                style={{
+                                    paddingVertical: 6, 
+                                    paddingHorizontal: 14, 
+                                    borderRadius: 20, 
+                                    borderWidth: 1,
+                                    borderColor: historyFilter === filterOption ? Colors.accent : Colors.border,
+                                    backgroundColor: historyFilter === filterOption ? Colors.accent + '20' : 'transparent',
+                                }}
+                                onPress={() => setHistoryFilter(filterOption)}
+                            >
+                                <Text style={{ 
+                                    color: historyFilter === filterOption ? Colors.accent : Colors.textSecondary, 
+                                    fontSize: 12, 
+                                    fontWeight: 'bold' 
+                                }}>
+                                    {filterOption}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+            
             {/* --- MOTORE CARTELLE DINAMICHE --- */}
             <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
                 {(() => {
