@@ -58,6 +58,22 @@ export default function CollaboratorHome({ onNavigateHistory, onNavigateProfile,
   // Orologio
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer); }, []);
 
+// --- MOTORE NOTIFICHE E IMPOSTAZIONI ---
+  const checkNotificationSettings = () => {
+      if (Platform.OS === 'web') {
+          alert("INFO: Le notifiche a comparsa funzionano solo scaricando l'App sul telefono. Da Web puoi consultare tutto ma non riceverai i popup!");
+      } else {
+          Alert.alert(
+              "Impostazioni Notifiche 🔔",
+              "Non ricevi le notifiche dei turni?\n\nVerifica nelle impostazioni del tuo telefono se hai dato il permesso all'app.",
+              [
+                  { text: "Annulla", style: "cancel" },
+                  { text: "APRI IMPOSTAZIONI", onPress: () => Linking.openSettings() }
+              ]
+          );
+      }
+  };
+
   const handleLogout = async () => {
       // FIX PER IL WEB: Il browser vuole "confirm", il telefono vuole "Alert"
       if (Platform.OS === 'web') {
@@ -435,6 +451,12 @@ getDoc(doc(db, "users", currentUser.uid)).then(docSnap => {
         </TouchableOpacity>
 
         <View style={styles.headerActions}>
+
+            {/* TASTO NOTIFICHE (CAMPANELLA) */}
+            <TouchableOpacity onPress={checkNotificationSettings} style={styles.iconButton}>
+                <Feather name="bell" size={22} color={CurrentColors.accent} />
+            </TouchableOpacity>
+            
             {/* TASTO GUIDA */}
 <TouchableOpacity onPress={() => setShowGuide(true)} style={styles.iconButton}>
     <Feather name="help-circle" size={22} color={CurrentColors.cyan} />

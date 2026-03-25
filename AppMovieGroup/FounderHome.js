@@ -14,38 +14,62 @@ const ColorSchemes = {
 };
 
 // --- HEADER LIVE: GERARCHIA E OPERATIONS ---
-const Header = ({ workingCount, adminCount, collabCount, theme, toggleTheme, onLogout, Colors }) => (
-  <View style={styles(Colors).headerContainer}>
-    <View>
-        <Text style={styles(Colors).headerTitle}>LIVE OPERATIONS</Text>
-        
-        {/* RIGA 1: IL BATTITO CARDIACO (CHI LAVORA ORA) */}
-        <Text style={{color: Colors.accentGreen, fontSize: 13, fontWeight: 'bold', marginBottom: 3}}>
-            🟢 {workingCount} IN TURNO ORA
-        </Text>
+const Header = ({ workingCount, adminCount, collabCount, theme, toggleTheme, onLogout, Colors }) => {
+  
+  // --- MOTORE NOTIFICHE E IMPOSTAZIONI ---
+  const checkNotificationSettings = () => {
+      if (Platform.OS === 'web') {
+          alert("INFO: Le notifiche a comparsa funzionano solo scaricando l'App sul telefono. Da Web puoi consultare tutto ma non riceverai i popup!");
+      } else {
+          Alert.alert(
+              "Impostazioni Notifiche 🔔",
+              "Non ricevi le notifiche dei turni?\n\nVerifica nelle impostazioni del tuo telefono se hai dato il permesso all'app.",
+              [
+                  { text: "Annulla", style: "cancel" },
+                  { text: "APRI IMPOSTAZIONI", onPress: () => Linking.openSettings() }
+              ]
+          );
+      }
+  };
 
-        {/* RIGA 2: LA STRUTTURA (GIALLO E CELESTE) */}
-        <View style={{flexDirection:'row', alignItems:'center'}}>
-            <Text style={{color: '#F59E0B', fontSize: 11, fontWeight: 'bold'}}> {/* Giallo Admin */}
-                🟡 {adminCount} ADMIN
-            </Text>
-            <Text style={{color: Colors.divider, fontSize: 11, marginHorizontal: 6}}>|</Text>
-            <Text style={{color: '#38BDF8', fontSize: 11, fontWeight: 'bold'}}> {/* Celeste Collab */}
-                🔵 {collabCount} DIPENDENTI
-            </Text>
-        </View>
+  return (
+    <View style={styles(Colors).headerContainer}>
+      <View>
+          <Text style={styles(Colors).headerTitle}>LIVE OPERATIONS</Text>
+          
+          {/* RIGA 1: IL BATTITO CARDIACO (CHI LAVORA ORA) */}
+          <Text style={{color: Colors.accentGreen, fontSize: 13, fontWeight: 'bold', marginBottom: 3}}>
+              🟢 {workingCount} IN TURNO ORA
+          </Text>
+
+          {/* RIGA 2: LA STRUTTURA (GIALLO E CELESTE) */}
+          <View style={{flexDirection:'row', alignItems:'center'}}>
+              <Text style={{color: '#F59E0B', fontSize: 11, fontWeight: 'bold'}}> {/* Giallo Admin */}
+                  🟡 {adminCount} ADMIN
+              </Text>
+              <Text style={{color: Colors.divider, fontSize: 11, marginHorizontal: 6}}>|</Text>
+              <Text style={{color: '#38BDF8', fontSize: 11, fontWeight: 'bold'}}> {/* Celeste Collab */}
+                  🔵 {collabCount} DIPENDENTI
+              </Text>
+          </View>
+      </View>
+      
+      <View style={styles(Colors).headerActions}>
+        {/* 🔥 TASTO NOTIFICHE (CAMPANELLA) 🔥 */}
+        <TouchableOpacity onPress={checkNotificationSettings} style={styles(Colors).iconButton}>
+          <Feather name="bell" size={22} color={Colors.accentCyan} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={toggleTheme} style={styles(Colors).iconButton}>
+          <Feather name={theme === 'dark' ? "sun" : "moon"} size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLogout} style={styles(Colors).iconButton}>
+          <Feather name="log-out" size={22} color={Colors.accentRed} />
+        </TouchableOpacity>
+      </View>
     </View>
-    
-    <View style={styles(Colors).headerActions}>
-      <TouchableOpacity onPress={toggleTheme} style={styles(Colors).iconButton}>
-        <Feather name={theme === 'dark' ? "sun" : "moon"} size={22} color={Colors.textPrimary} />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onLogout} style={styles(Colors).iconButton}>
-        <Feather name="log-out" size={22} color={Colors.accentRed} />
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+  );
+};
 
 // TILE QUADRATA PER LA GRIGLIA
 const GridTile = ({ label, value, icon, color, Colors, onPress }) => (
